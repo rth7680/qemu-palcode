@@ -1,6 +1,17 @@
 CC = /home/rth/work/gcc/run-axp/bin/alphaev6-linux-gcc
+LD = /home/rth/work/gcc/run-axp/bin/alphaev6-linux-ld
+CFLAGS = -O2 -g -msmall-text -msmall-data -fvisibility=hidden
 
-all: pal.o
+OBJS = pal.o init.o memset.o
 
-pal.o: pal.S
-	$(CC) -c -Wa,-m21264 -g -o $@ $<
+all: palcode
+
+palcode: palcode.ld $(OBJS)
+	$(LD) -relax -o $@ -T palcode.ld -Map palcode.map $(OBJS)
+
+clean:
+	rm -f *.o
+	rm -f palcode palcode.map
+
+pal.o: pal.S osf.h
+	$(CC) $(CFLAGS) -c -Wa,-m21264 -Wa,--noexecstack -o $@ $<

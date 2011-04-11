@@ -206,3 +206,17 @@
 #define SCB_Q_SYSMCHK           0x0660
 #define SCB_Q_PROCMCHK          0x0670
 
+
+/*
+ * OSF/1 PAL-code-imposed page table bits
+ */
+#define _PAGE_VALID     0x0001
+#define _PAGE_FOR       0x0002  /* used for page protection (fault on read) */
+#define _PAGE_FOW       0x0004  /* used for page protection (fault on write) */
+#define _PAGE_FOE       0x0008  /* used for page protection (fault on exec) */
+#define _PAGE_ASM       0x0010
+#define _PAGE_KRE       0x0100  /* xxx - see below on the "accessed" bit */
+#define _PAGE_URE       0x0200  /* xxx */
+#define _PAGE_KWE       0x1000  /* used to do the dirty bit in software */
+#define _PAGE_UWE       0x2000  /* used to do the dirty bit in software */
+

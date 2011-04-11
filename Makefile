@@ -2,7 +2,7 @@ CC = /home/rth/work/gcc/run-axp/bin/alphaev6-linux-gcc
 LD = /home/rth/work/gcc/run-axp/bin/alphaev6-linux-ld
 CFLAGS = -O2 -g -msmall-text -msmall-data -fvisibility=hidden
 
-OBJS = pal.o init.o memset.o
+OBJS = pal.o init.o uart.o memset.o
 
 all: palcode
 

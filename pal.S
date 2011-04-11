@@ -1,9 +1,8 @@
-	.set	noat
-	.set	nomacro
+	.set		noat
+	.set		nomacro
 	.text
 
 #include "osf.h"
-#include "impure.h"
 
 /* General Purpose Registers.  */
 #define	v0	$0
@@ -48,6 +47,8 @@
 #define qemu_ptbr	8
 #define qemu_vptptr	9
 #define qemu_unique	10
+#define qemu_lock_addr	11
+
 #define qemu_shadow0	32
 #define qemu_shadow1	33
 #define qemu_shadow2	34
@@ -84,11 +85,10 @@
 #define pt23		63
 
 /* QEMU function calls, via mtpr.  */
-#define qemu_tbia	128
-#define qemu_tbis	129
+#define qemu_tbia	255
+#define qemu_tbis	254
 
 /* PALcode uses of the private storage slots.  */
-#define ptSuper		pt0
 #define ptEntUna	pt1
 #define ptEntIF		pt2
 #define ptEntSys	pt3
@@ -101,7 +101,7 @@
 #define ptKsp		pt10
 #define ptKgp		pt11
 #define ptPcbb		pt12
-#define ptImpure	pt13
+#define ptPgp		pt13
 #define ptMchk0		pt14
 #define ptMchk1		pt15
 #define ptMisc		pt16
@@ -156,6 +156,13 @@
 .endm
 
 /*
+ * Allocate a 1 page stack for use by the console.
+ */
+#define STACK_SIZE	8192
+
+	.comm	stack, STACK_SIZE, 8
+
+/*
  * QEMU emulator "hardware" entry points.
  */
 
@@ -166,19 +173,39 @@
  * 
  *	trap_arg0 = Memory size
  *	trap_arg1 = Kernel entry (if loaded)
- *
- * Given that we've no CPU state to save, set things up so that we can
- * jump to C to do the real initialization.
  */ 
         .org	0x0000
+	.globl	__start
 __start:
+	// Initialize GP and stack.
 	br	$gp, .+4
 	ldah	$gp, 0($gp)		!gpdisp!1
-	lda	$gp, 0($gp)		!gpdisp!1
-	lda	$sp, stack_top($gp)	!gprel
+	lda	$gp, 0($gp)			!gpdisp!1
+	mtpr	$gp, ptPgp
+
+	lda	$sp, stack+STACK_SIZE($gp)	!gprel
+
+	// Disable interrupts; kernel mode
+	lda	t0, IPL_K_HIGH
+	mtpr	t0, qemu_ps
+
+	// Load the initial PCB and page table elements.
+	lda	t0, page_dir($gp)		!gprel
+	mtpr	t0, qemu_ptbr
+
+	lda	t0, pal_pcb($gp)		!gprel
+	zap	t0, 0xf0, t0
+	mtpr	t0, ptPcbb
+
+	// Load boot arguments
 	mfpr	a0, qemu_trap_arg0
 	mfpr	a1, qemu_trap_arg1
-	br	do_start		!samegp
+	mfpr	a2, qemu_trap_arg2
+
+	// Continue in do_start, outside PALmode.
+	ldah	$27, do_start($gp)		!gprelhigh
+	lda	$27, do_start($27)		!gprellow
+	hw_ret	($27)
 
 /*
  * Machine Check
@@ -216,8 +243,8 @@ Pal_Mchk:
  */ 
 	.org	0x0100
 Pal_Interrupt:
-	mfpr	p0, qemu_ps
 	mfpr	p6, qemu_exc_addr
+	mfpr	p0, qemu_ps
 
 	STACK_FRAME p0, p6, p2
 
@@ -766,6 +793,11 @@ CallPal_SwpCtxCont:
 	ldq_p	t10, PCB_Q_USP(v0)
 	mtpr	t10, ptUsp
 
+	mfpr	t10, qemu_unique	// Save old unique value
+	stq_p	t10, PCB_Q_UNIQUE(v0)
+	ldq_p	t10, PCB_Q_UNIQUE(a0)	// Install new unique value
+	mtpr	t10, qemu_unique
+
 	ldq_p	t8, PCB_Q_FEN(a0)	// Install new FEN
 	and	t8, 1, t8
 	mtpr	t8, qemu_fen
@@ -774,7 +806,7 @@ CallPal_SwpCtxCont:
 
 	ldq_p	t10, PCB_Q_PTBR(a0)	// Install new page tables
 	mtpr	t10, qemu_ptbr
-	mtpr	$31, qemu_tbia		// Flush TLB
+	mtpr	$31, qemu_tbia		// Flush TLB, since we don't do ASNs
 
 	hw_rei
 	.previous
@@ -1634,66 +1666,78 @@ MchkCommon:
 .endm
 
 MchkLogOut:
-	mfpr	p6, ptImpure		// Get address of logout frame
-	lda	p6, LAF_Q_BASE(p6)
+	mfpr	p6, ptPgp		// Get address of logout frame
+	lda	p6, laf_base(p6)	!gprel
 
-	lda	t3, LAF_K_SIZE(t4)	// Combine retry flag and frame size
-	stq_p	t3, LAF_L_SIZE(p6)
+	lda	t3, $laf_size
+	stl_p	t3, laf_l_size - laf_base(p6)
+	stl_p	t4, laf_l_flag - laf_base(p6)
 
-	lda	t3, LAF_Q_SYS_BASE
-	sll	t3, 32, t3
-	lda	t3, LAF_Q_CPU_BASE(t3)
-	stq_p	t3, LAF_Q_OFFSET_BASE(p6)
+	lda	t3, laf_cpu_base - laf_base
+	stl_p	t3, laf_l_cpu - laf_base(p6)
+	lda	t3, laf_sys_base - laf_base
+	stl_p	t3, laf_l_sys - laf_base(p6)
 
-	stq_p	t5, LAF_Q_MCHK_CODE(p6)
+	STORE_IPR  qemu_shadow0, laf_q_shadow - laf_base + 0x00, p6
+	STORE_IPR  qemu_shadow1, laf_q_shadow - laf_base + 0x08, p6
+	STORE_IPR  qemu_shadow2, laf_q_shadow - laf_base + 0x10, p6
+	STORE_IPR  qemu_shadow3, laf_q_shadow - laf_base + 0x18, p6
+	STORE_IPR  qemu_shadow4, laf_q_shadow - laf_base + 0x20, p6
+	STORE_IPR  qemu_shadow5, laf_q_shadow - laf_base + 0x28, p6
+	STORE_IPR  qemu_shadow6, laf_q_shadow - laf_base + 0x30, p6
+	STORE_IPR  qemu_shadow7, laf_q_shadow - laf_base + 0x38, p6
 
-	// Being virtual, we don't have I/D caches, or cache errors.
-	stq_p	$31, LAF_Q_ICPERR(p6)
-	stq_p	$31, LAF_Q_DCPERR(p6)
-	stq_p	$31, LAF_Q_BC_ADDR(p6)
-	stq_p	$31, LAF_Q_BC_STAT(p6)
+	STORE_IPR  pt0, laf_q_pt - laf_base + 0x00, p6
+	STORE_IPR  pt1, laf_q_pt - laf_base + 0x08, p6
+	STORE_IPR  pt2, laf_q_pt - laf_base + 0x10, p6
+	STORE_IPR  pt3, laf_q_pt - laf_base + 0x18, p6
+	STORE_IPR  pt4, laf_q_pt - laf_base + 0x20, p6
+	STORE_IPR  pt5, laf_q_pt - laf_base + 0x28, p6
+	STORE_IPR  pt6, laf_q_pt - laf_base + 0x30, p6
+	STORE_IPR  pt7, laf_q_pt - laf_base + 0x38, p6
+	STORE_IPR  pt8, laf_q_pt - laf_base + 0x40, p6
+	STORE_IPR  pt9, laf_q_pt - laf_base + 0x48, p6
+	STORE_IPR pt10, laf_q_pt - laf_base + 0x50, p6
+	STORE_IPR pt11, laf_q_pt - laf_base + 0x58, p6
+	STORE_IPR pt12, laf_q_pt - laf_base + 0x60, p6
+	STORE_IPR pt13, laf_q_pt - laf_base + 0x68, p6
+	STORE_IPR pt14, laf_q_pt - laf_base + 0x70, p6
+	STORE_IPR pt15, laf_q_pt - laf_base + 0x78, p6
+	STORE_IPR pt16, laf_q_pt - laf_base + 0x80, p6
+	STORE_IPR pt17, laf_q_pt - laf_base + 0x88, p6
+	STORE_IPR pt18, laf_q_pt - laf_base + 0x90, p6
+	STORE_IPR pt19, laf_q_pt - laf_base + 0x98, p6
+	STORE_IPR pt20, laf_q_pt - laf_base + 0xa0, p6
+	STORE_IPR pt21, laf_q_pt - laf_base + 0xa8, p6
+	STORE_IPR pt22, laf_q_pt - laf_base + 0xb0, p6
+	STORE_IPR pt23, laf_q_pt - laf_base + 0xb8, p6
 
 	mfpr	t0, ptMchk1
 	mfpr	t3, ptMchk2
 	mfpr	t4, ptMchk3
 	mfpr	t5, ptMchk4
 	mfpr	p7, ptMchk5
-	stq_p	p7, LAF_Q_EXC_ADDR(p6)
+	stq_p	p7, laf_q_exc_addr - laf_base(p6)
 
-	stq_p	$31, LAF_Q_MM_STAT(p6)
-	stq_p	$31, LAF_Q_VA(p6)
-	stq_p	$31, LAF_Q_ISR(p6)
-	stq_p	$31, LAF_Q_ICSR(p6)
+	stq_p	$31, laf_q_exc_sum - laf_base(p6)
+	stq_p	$31, laf_q_exc_mask - laf_base(p6)
 
-	STORE_IPR qemu_palbr, LAF_Q_PAL_BASE, p6
+	STORE_IPR qemu_palbr, laf_q_pal_base - laf_base, p6
 
-	stq_p	$31, LAF_Q_EXC_MASK(p6)
-	stq_p	$31, LAF_Q_EXC_SUM(p6)
+	stq_p	$31, laf_q_isr - laf_base(p6)
+	stq_p	$31, laf_q_icsr - laf_base(p6)
+	stq_p	$31, laf_q_icperr - laf_base(p6)
+	stq_p	$31, laf_q_dcperr - laf_base(p6)
+	stq_p	$31, laf_q_va - laf_base(p6)
+	stq_p	$31, laf_q_mm_stat - laf_base(p6)
+	stq_p	$31, laf_q_sc_addr - laf_base(p6)
+	stq_p	$31, laf_q_sc_stat - laf_base(p6)
+	stq_p	$31, laf_q_bc_addr - laf_base(p6)
+	stq_p	$31, laf_q_ei_addr - laf_base(p6)
+	stq_p	$31, laf_q_fill_syndrome - laf_base(p6)
+	stq_p	$31, laf_q_ei_stat - laf_base(p6)
 
-	STORE_IPR  pt0, LAF_Q_PT+0x00, p6
-	STORE_IPR  pt1, LAF_Q_PT+0x08, p6
-	STORE_IPR  pt2, LAF_Q_PT+0x10, p6
-	STORE_IPR  pt3, LAF_Q_PT+0x18, p6
-	STORE_IPR  pt4, LAF_Q_PT+0x20, p6
-	STORE_IPR  pt5, LAF_Q_PT+0x28, p6
-	STORE_IPR  pt6, LAF_Q_PT+0x30, p6
-	STORE_IPR  pt7, LAF_Q_PT+0x38, p6
-	STORE_IPR  pt8, LAF_Q_PT+0x40, p6
-	STORE_IPR  pt9, LAF_Q_PT+0x48, p6
-	STORE_IPR pt10, LAF_Q_PT+0x50, p6
-	STORE_IPR pt11, LAF_Q_PT+0x58, p6
-	STORE_IPR pt12, LAF_Q_PT+0x60, p6
-	STORE_IPR pt13, LAF_Q_PT+0x68, p6
-	STORE_IPR pt14, LAF_Q_PT+0x70, p6
-	STORE_IPR pt15, LAF_Q_PT+0x78, p6
-	STORE_IPR pt16, LAF_Q_PT+0x80, p6
-	STORE_IPR pt17, LAF_Q_PT+0x88, p6
-	STORE_IPR pt18, LAF_Q_PT+0x90, p6
-	STORE_IPR pt19, LAF_Q_PT+0x98, p6
-	STORE_IPR pt20, LAF_Q_PT+0xa0, p6
-	STORE_IPR pt21, LAF_Q_PT+0xa8, p6
-	STORE_IPR pt22, LAF_Q_PT+0xb0, p6
-	STORE_IPR pt23, LAF_Q_PT+0xb8, p6
+	STORE_IPR qemu_lock_addr, laf_q_ld_lock - laf_base, p6
 
 	// bsr v0, Sys_MchkLogOut
 
@@ -1771,4 +1815,64 @@ UpdatePCB:
 	addl	p5, p3, p3
 	stl_p	p3, PCB_L_PCC(p4)	// Store new time
 
+	mfpr	p5, qemu_unique		// Save unique
+	stq_p	p5, PCB_Q_UNIQUE(p4)
+
 	ret	$31, (p7), 0
+
+/*
+ * FIXME
+ */
+Sys_EnterConsole:
+Sys_Cserve:
+	halt
+
+/*
+ * Allocate the logout frame.
+ */
+	.section	.sbss
+	.type	laf_base,@object
+laf_base:
+laf_l_size:		.long	0
+laf_l_flag:		.long	0
+laf_l_cpu:		.long	0
+laf_l_sys:		.long	0
+laf_q_mchk_code:	.quad	0
+
+$las_size		= . - laf_base
+
+laf_cpu_base:
+laf_q_shadow:		.skip	8*8
+laf_q_pt:		.skip	8*24
+laf_q_exc_addr:		.quad	0
+laf_q_exc_sum:		.quad	0
+laf_q_exc_mask:		.quad	0
+laf_q_pal_base:		.quad	0
+laf_q_isr:		.quad	0
+laf_q_icsr:		.quad	0
+laf_q_icperr:		.quad	0
+laf_q_dcperr:		.quad	0
+laf_q_va:		.quad	0
+laf_q_mm_stat:		.quad	0
+laf_q_sc_addr:		.quad	0
+laf_q_sc_stat:		.quad	0
+laf_q_bc_addr:		.quad	0
+laf_q_ei_addr:		.quad	0
+laf_q_fill_syndrome:	.quad	0
+laf_q_ei_stat:		.quad	0
+laf_q_ld_lock:		.quad	0
+
+laf_sys_base:
+laf_q_cpu_err0:		.quad	0
+laf_q_cpu_err1:		.quad	0
+laf_q_cia_err:		.quad	0
+laf_q_err_mask:		.quad	0
+laf_q_cia_syn:		.quad	0
+laf_q_mem_err0:		.quad	0
+laf_q_mem_err1:		.quad	0
+laf_q_pci_err0:		.quad	0
+laf_q_pci_err1:		.quad	0
+laf_q_pci_err2:		.quad	0
+
+$laf_size		= . - laf_base
+	.size	laf_base, . - laf_base

@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include "hwrpb.h"
 #include "osf.h"
+#include "uart.h"
 
 #define PAGE_SHIFT	13
 #define PAGE_SIZE	(1ul << PAGE_SHIFT)
@@ -201,6 +202,9 @@ do_start(unsigned long memsize)
   init_hwrpb (memsize);
   init_pcb ();
   init_page_table (memsize, hwrpb.mc[0].numpages);
+
+  uart_init ();
+  uart_puts (COM1, "Hello, World!\n");
 
   while (1) ;
 }

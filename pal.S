@@ -160,8 +160,6 @@
  */
 #define STACK_SIZE	8192
 
-	.comm	stack, STACK_SIZE, 8
-
 /*
  * QEMU emulator "hardware" entry points.
  */
@@ -1832,6 +1830,7 @@ Sys_Cserve:
  */
 	.section	.sbss
 	.type	laf_base,@object
+	.align	3
 laf_base:
 laf_l_size:		.long	0
 laf_l_flag:		.long	0
@@ -1876,3 +1875,8 @@ laf_q_pci_err2:		.quad	0
 
 $laf_size		= . - laf_base
 	.size	laf_base, . - laf_base
+
+	.align 3
+	.type	stack,@object
+	.size	stack,STACK_SIZE
+stack:	.skip	STACK_SIZE

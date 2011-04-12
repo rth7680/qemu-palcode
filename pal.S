@@ -979,7 +979,7 @@ CallPal_WrEnt:
 	andnot	a0, 3, a0		// Clean PC<1:0>
 
 	cmpult	a1, 6, t8		// Bound the input
-	cmoveq	t8, 7, a1
+	cmoveq	t8, 6, a1
 
 	br	t0, 1f
 1:	lda	t0, WrEnt_Table-1b(t0)

@@ -211,5 +211,7 @@ do_start(unsigned long memsize, void (*kernel_entry)(void))
   uart_init ();
   uart_puts (COM1, "Hello, World!\n");
 
-  while (1) ;
+  if (kernel_entry)
+    kernel_entry();
+  asm ("halt");
 }

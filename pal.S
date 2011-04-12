@@ -399,6 +399,14 @@ Pal_Fen:
 CallPal_Halt:
 	bsr	p7, UpdatePCB		// Save kernel data
 	lda	v0, HLT_K_SW_HALT
+
+	ldah	p0, 1			// Store 0xdead into CIA RESET reg
+	lda	p0, -(0x10000 - 0xdead)(p0)
+	lda	p1, 0x878
+	sll	p1, 28, p1
+	lda	p1, 0x900(p1)
+	stl_p	p0, 0(p1)
+
 	br	Sys_EnterConsole
 
 /*

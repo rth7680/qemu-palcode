@@ -70,9 +70,8 @@ static void *
 alloc (unsigned long size, unsigned long align)
 {
   unsigned long p = (last_alloc + align - 1) & ~(align - 1);
-
   last_alloc = p + size;
-  return (void *)p;
+  return memset ((void *)p, 0, size);
 }
 
 static unsigned long

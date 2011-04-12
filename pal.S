@@ -140,7 +140,7 @@
 .macro	STACK_FRAME save_ps, save_pc, temp
 	// Test if we're currently in user mode
 	and	\save_ps, PS_M_CM, \temp
-	bne	\temp, 0f
+	beq	\temp, 0f
 	// Switch to kernel mode
 	mtpr	$31, qemu_ps
 	mtpr	$sp, ptUsp
@@ -153,6 +153,11 @@
 	stq	a0, FRM_Q_A0($sp)
 	stq	a1, FRM_Q_A1($sp)
 	stq	a2, FRM_Q_A2($sp)
+.endm
+
+.macro	ENDFN	function
+	.type	\function, @function
+	.size	\function, . - \function
 .endm
 
 /*
@@ -196,6 +201,15 @@ __start:
 	zap	t0, 0xf0, t0
 	mtpr	t0, ptPcbb
 
+	// Make sure kernel entry points are invalid.
+	lda	t0, -1
+	mtpr	t0, ptEntUna
+	mtpr	t0, ptEntIF
+	mtpr	t0, ptEntSys
+	mtpr	t0, ptEntInt
+	mtpr	t0, ptEntArith
+	mtpr	t0, ptEntMM
+
 	// Load boot arguments
 	mfpr	a0, qemu_trap_arg0
 	mfpr	a1, qemu_trap_arg1
@@ -205,6 +219,7 @@ __start:
 	ldah	$27, do_start($gp)		!gprelhigh
 	lda	$27, do_start($27)		!gprellow
 	hw_ret	($27)
+ENDFN	__start
 
 /*
  * Machine Check
@@ -230,6 +245,7 @@ Pal_Mchk:
 	mtpr	p4, ptMisc
 
 	br	MchkCommon_SaveRegs
+ENDFN	Pal_Mchk
 
 /*
  * Interrupt
@@ -241,6 +257,7 @@ Pal_Mchk:
  *	trap_arg2 = UNDEFINED
  */ 
 	.org	0x0100
+	.type	Pal_Interrupt, @function
 Pal_Interrupt:
 	mfpr	p6, qemu_exc_addr
 	mfpr	p0, qemu_ps
@@ -251,6 +268,7 @@ Pal_Interrupt:
 	mfpr	$gp, ptKgp
 	mfpr	a0, qemu_trap_arg0
 	hw_ret	(p0)
+ENDFN	Pal_Interrupt
 
 /*
  * Memory Fault
@@ -275,6 +293,7 @@ Pal_MMFault:
 	mfpr	a1, qemu_trap_arg1
 	mfpr	a2, qemu_trap_arg2
 	hw_ret	(p0)
+ENDFN	Pal_MMFault
 
 /*
  * Unaligned Data
@@ -300,6 +319,7 @@ Pal_Unalign:
 	mfpr	a1, qemu_trap_arg1
 	mfpr	a2, qemu_trap_arg2
 	hw_ret	(p0)
+ENDFN	Pal_Unalign
 
 /*
  * Illegal Opcode
@@ -329,6 +349,7 @@ Pal_OpcDec:
 	mfpr	$gp, ptKgp
 	mov	IF_K_OPCDEC, a0
 	hw_ret	(p0)
+ENDFN	Pal_OpcDec
 
 /*
  * Arithmetic Trap
@@ -352,6 +373,7 @@ Pal_Arith:
 	mfpr	a0, qemu_trap_arg0
 	mfpr	a1, qemu_trap_arg1
 	hw_ret	(p0)
+ENDFN	Pal_Arith
 
 /*
  * Floating Point Disabled
@@ -380,6 +402,7 @@ Pal_Fen:
 	mfpr	$gp, ptKgp
 	mov	IF_K_FEN, a0
 	hw_ret	(p0)
+ENDFN	Pal_Fen
 
 /*
  * OSF/1 Privileged CALL_PAL Entry Points
@@ -409,6 +432,7 @@ CallPal_Halt:
 	stl_p	p0, 0(p1)
 
 	br	Sys_EnterConsole
+ENDFN	CallPal_Halt
 
 /*
  * Cache Flush
@@ -418,6 +442,7 @@ CallPal_Halt:
 	ORG_CALL_PAL_PRIV(0x01)
 CallPal_Cflush:
 	hw_rei
+ENDFN	CallPal_Cflush
 
 /*
  * Drain Aborts
@@ -427,30 +452,37 @@ CallPal_Cflush:
         ORG_CALL_PAL_PRIV(0x02)
 CallPal_Draina:
 	hw_rei
+ENDFN	CallPal_Draina
 
 	ORG_CALL_PAL_PRIV(0x03)
 CallPal_OpcDec03:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec03
 
 	ORG_CALL_PAL_PRIV(0x04)
 CallPal_OpcDec04:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec04
 
 	ORG_CALL_PAL_PRIV(0x05)
 CallPal_OpcDec05:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec05
 
 	ORG_CALL_PAL_PRIV(0x06)
 CallPal_OpcDec06:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec06
 
 	ORG_CALL_PAL_PRIV(0x07)
 CallPal_OpcDec07:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec07
 
 	ORG_CALL_PAL_PRIV(0x08)
 CallPal_OpcDec08:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec08
 
 /*
  * Console Service
@@ -467,6 +499,7 @@ CallPal_OpcDec08:
 	ORG_CALL_PAL_PRIV(0x09)
 CallPal_Cserve:
 	br	Sys_Cserve
+ENDFN	CallPal_Cserve
 
 /*
  * Swap PALcode
@@ -519,19 +552,24 @@ CallPal_SwpPal:
 	// Return as an unknown PALcode variant
 	mov	1, v0
 	hw_rei
+ENDFN	CallPal_SwpPal
 
 	.text	1
 CallPal_SwpPal_Cont:
 	// YOUAREHERE
+	halt
+ENDFN	CallPal_SwpPal_Cont
 	.previous
 
 	ORG_CALL_PAL_PRIV(0x0B)
 CallPal_OpcDec0B:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec0B
 
 	ORG_CALL_PAL_PRIV(0x0C)
 CallPal_OpcDec0C:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec0C
 
 /*
  * Write Interprocessor Interrupt Request
@@ -549,14 +587,17 @@ CallPal_OpcDec0C:
 CallPal_WrIpir:
 	// We do not currently support more cpus
 	hw_rei
+ENDFN	CallPal_WrIpir
 
 	ORG_CALL_PAL_PRIV(0x0E)
 CallPal_OpcDec0E:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec0E
 
 	ORG_CALL_PAL_PRIV(0x0F)
 CallPal_OpcDec0F:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec0F
 
 /*
  * Read Machine Check Error Summary
@@ -575,6 +616,7 @@ CallPal_RdMces:
 	mfpr	v0, ptMces		// Get current MCES value
 	and	v0, MCES_M_ALL, v0	// Clear all other bits
 	hw_rei
+ENDFN	CallPal_RdMces
 
 /*
  * Write Machine Check Error Summary
@@ -603,106 +645,132 @@ CallPal_WrMces:
 
 	mtpr	p1, ptMces
 	hw_rei
+ENDFN	CallPal_WrMces
 
 	ORG_CALL_PAL_PRIV(0x12)
 CallPal_OpcDec12:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec12
 
 	ORG_CALL_PAL_PRIV(0x13)
 CallPal_OpcDec13:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec13
 
 	ORG_CALL_PAL_PRIV(0x14)
 CallPal_OpcDec14:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec14
 
 	ORG_CALL_PAL_PRIV(0x15)
 CallPal_OpcDec15:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec15
 
 	ORG_CALL_PAL_PRIV(0x16)
 CallPal_OpcDec16:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec16
 
 	ORG_CALL_PAL_PRIV(0x17)
 CallPal_OpcDec17:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec17
 
 	ORG_CALL_PAL_PRIV(0x18)
 CallPal_OpcDec18:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec18
 
 	ORG_CALL_PAL_PRIV(0x19)
 CallPal_OpcDec19:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec19
 
 	ORG_CALL_PAL_PRIV(0x1A)
 CallPal_OpcDec1A:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec1A
 
 	ORG_CALL_PAL_PRIV(0x1B)
 CallPal_OpcDec1B:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec1B
 
 	ORG_CALL_PAL_PRIV(0x1C)
 CallPal_OpcDec1C:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec1C
 
 	ORG_CALL_PAL_PRIV(0x1D)
 CallPal_OpcDec1D:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec1D
 
 	ORG_CALL_PAL_PRIV(0x1E)
 CallPal_OpcDec1E:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec1E
 
 	ORG_CALL_PAL_PRIV(0x1F)
 CallPal_OpcDec1F:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec1F
 
 	ORG_CALL_PAL_PRIV(0x20)
 CallPal_OpcDec20:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec20
 
 	ORG_CALL_PAL_PRIV(0x21)
 CallPal_OpcDec21:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec21
 
 	ORG_CALL_PAL_PRIV(0x22)
 CallPal_OpcDec22:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec22
 
 	ORG_CALL_PAL_PRIV(0x23)
 CallPal_OpcDec23:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec23
 
 	ORG_CALL_PAL_PRIV(0x24)
 CallPal_OpcDec24:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec24
 
 	ORG_CALL_PAL_PRIV(0x25)
 CallPal_OpcDec25:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec25
 
 	ORG_CALL_PAL_PRIV(0x26)
 CallPal_OpcDec26:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec26
 
 	ORG_CALL_PAL_PRIV(0x27)
 CallPal_OpcDec27:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec27
 
 	ORG_CALL_PAL_PRIV(0x28)
 CallPal_OpcDec28:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec28
 
 	ORG_CALL_PAL_PRIV(0x29)
 CallPal_OpcDec29:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec29
 
 	ORG_CALL_PAL_PRIV(0x2A)
 CallPal_OpcDec2A:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec2A
 
 /*
  * Write Floating Point Enable
@@ -722,10 +790,12 @@ CallPal_WrFen:
 	mtpr	a0, qemu_fen
 	stl_p	a0, PCB_Q_FEN(p0)	// Write new PCB<FEN>
 	hw_rei
+ENDFN	CallPal_WrFen
 
 	ORG_CALL_PAL_PRIV(0x2C)
 CallPal_OpcDec2C:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec2C
 
 /*
  * Write Virtual Page Table Pointer
@@ -742,14 +812,17 @@ CallPal_OpcDec2C:
 CallPal_WrVptPtr:
 	mtpr	a0, qemu_vptptr
 	hw_rei
+ENDFN	CallPal_WrVptPtr
 
 	ORG_CALL_PAL_PRIV(0x2E)
 CallPal_OpcDec2E:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec2E
 
 	ORG_CALL_PAL_PRIV(0x2F)
 CallPal_OpcDec2F:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec2F
 
 /*
  * Swap Process Context
@@ -793,10 +866,11 @@ CallPal_SwpCtx:
 	mfpr	t10, ptUsp		// Save old user stack pointer
 	stq_p	t10, PCB_Q_USP(v0)
 
-	br	CallPal_SwpCtxCont
+	br	CallPal_SwpCtx_Cont
+ENDFN	CallPal_SwpCtx
 
 	.text	1
-CallPal_SwpCtxCont:
+CallPal_SwpCtx_Cont:
 	ldq_p	$sp, PCB_Q_KSP(v0)	// Install new stack pointers
 	ldq_p	t10, PCB_Q_USP(v0)
 	mtpr	t10, ptUsp
@@ -817,6 +891,7 @@ CallPal_SwpCtxCont:
 	mtpr	$31, qemu_tbia		// Flush TLB, since we don't do ASNs
 
 	hw_rei
+ENDFN	CallPal_SwpCtx_Cont
 	.previous
 
 /*
@@ -834,6 +909,7 @@ CallPal_SwpCtxCont:
 CallPal_WrVal:
 	mtpr	a0, ptSysVal
 	hw_rei
+ENDFN	CallPal_WrVal
 
 /*
  * Read System Value
@@ -850,6 +926,7 @@ CallPal_WrVal:
 CallPal_RdVal:
 	mfpr	v0, ptSysVal
 	hw_rei
+ENDFN	CallPal_RdVal
 
 /*
  * Translation Buffer Invalidate
@@ -882,6 +959,7 @@ CallPal_Tbi:
 
 1:	mtpr	a1, qemu_tbis
 	hw_rei
+ENDFN	CallPal_Tbi
 
 /*
  * Write System Entry Address
@@ -905,8 +983,9 @@ CallPal_WrEnt:
 
 	br	t0, 1f
 1:	lda	t0, WrEnt_Table-1b(t0)
-	s8addq	t0, a1, t0
-	jmp	$31, (t0), WrEnt_Table
+	s8addq	a1, t0, t0
+	jmp	$31, (t0), 0
+ENDFN	CallPal_WrEnt
 
 	.text	1
 WrEnt_Table:
@@ -924,6 +1003,7 @@ WrEnt_Table:
 	hw_rei
 6:	nop
 	hw_rei
+ENDFN	WrEnt_Table
 	.previous
 
 /*
@@ -948,6 +1028,7 @@ CallPal_SwpIpl:
 	and	v0, PS_M_IPL, v0
 	mtpr	a0, qemu_ps
 	hw_rei
+ENDFN	CallPal_SwpIpl
 
 /*
  * Read Processor Status
@@ -964,6 +1045,7 @@ CallPal_SwpIpl:
 CallPal_RdPs:
 	mfpr	v0, qemu_ps
 	hw_rei
+ENDFN	CallPal_RdPs
 
 /*
  * Write Kernel Global Pointer
@@ -980,6 +1062,7 @@ CallPal_RdPs:
 CallPal_WrKgp:
 	mtpr	a0, ptKgp
 	hw_rei
+ENDFN	CallPal_WrKgp
 
 /*
  * Write User Stack Pointer
@@ -996,6 +1079,7 @@ CallPal_WrKgp:
 CallPal_WrUsp:
 	mtpr	a0, ptUsp
 	hw_rei
+ENDFN	CallPal_WrUsp
 
 /*
  * Write Performance Monitor
@@ -1012,6 +1096,8 @@ CallPal_WrUsp:
 CallPal_WrPerfMon:
 	// Not implemented
 	hw_rei
+ENDFN	CallPal_WrPerfMon
+
 /*
  * Read User Stack Pointer
  * 
@@ -1027,10 +1113,12 @@ CallPal_WrPerfMon:
 CallPal_RdUsp:
 	mfpr	v0, ptUsp
 	hw_rei
+ENDFN	CallPal_RdUsp
 
 	ORG_CALL_PAL_PRIV(0x3B)
 CallPal_OpcDec3B:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec3B
 
 /*
  * Who Am I
@@ -1048,6 +1136,7 @@ CallPal_Whami:
 	// We do not currently support more cpus
 	mov	0, v0
 	hw_rei
+ENDFN	CallPal_Whami
 
 /*
  * Return From System Call
@@ -1079,6 +1168,7 @@ CallPal_RetSys:
 
 	andnot	t9, 3, t9		// Clean return PC<1:0>
 	hw_ret	(t9)
+ENDFN	CallPal_RetSys
 
 /*
  * Wait For Interrupt
@@ -1105,6 +1195,7 @@ CallPal_RetSys:
 	ORG_CALL_PAL_PRIV(0x3E)
 CallPal_WtInt:
 	hw_rei
+ENDFN	CallPal_WtInt
 
 /*
  * Return From Trap, Fault, or Interrupt
@@ -1142,6 +1233,7 @@ CallPal_Rti:
 	and	p4, PS_M_IPL, p4
 	mtpr	p4, qemu_ps
 	hw_ret	(p5)
+ENDFN	CallPal_Rti
 
 	.text	1
 CallPal_Rti_ToUser:
@@ -1149,6 +1241,7 @@ CallPal_Rti_ToUser:
 	mtpr	$sp, ptKsp
 	mfpr	$sp, ptUsp
 	hw_ret	(p5)
+ENDFN	CallPal_Rti_ToUser
 	.previous
 
 
@@ -1177,7 +1270,7 @@ CallPal_Rti_ToUser:
 CallPal_Stack_Frame:
 	// Test if we're currently in user mode
 	and	p5, PS_M_CM, p0
-	bne	p0, 0f
+	beq	p0, 0f
 CallPal_Stack_Frame_FromUser:
 	// Switch to kernel mode
 	mtpr	$31, qemu_ps
@@ -1193,6 +1286,7 @@ CallPal_Stack_Frame_FromUser:
 	stq	a1, FRM_Q_A1($sp)
 	stq	a2, FRM_Q_A2($sp)
 	ret	$31, (p7), 0
+ENDFN	CallPal_Stack_Frame
 	.previous
 
 /*
@@ -1214,6 +1308,7 @@ CallPal_Bpt:
 	mfpr	$gp, ptKgp
 	mov	IF_K_BPT, a0
 	hw_ret	(p0)
+ENDFN	CallPal_Bpt
 
 /*
  * Bugcheck Trap
@@ -1234,11 +1329,13 @@ CallPal_BugChk:
 	mfpr	$gp, ptKgp
 	mov	IF_K_BUGCHK, a0
 	hw_ret	(p0)
+ENDFN	CallPal_BugChk
 
 
 	ORG_CALL_PAL_UNPRIV(0x82)
 CallPal_OpcDec82:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec82
 
 /*
  * System Call
@@ -1259,14 +1356,17 @@ CallPal_CallSys:
 
 0:	subq	p6, 4, p6		// Get PC of CALL_PAL insn
 	br	MchkOSBugCheck
+ENDFN	CallPal_CallSys
 
 	ORG_CALL_PAL_UNPRIV(0x84)
 CallPal_OpcDec84:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec84
 
 	ORG_CALL_PAL_UNPRIV(0x85)
 CallPal_OpcDec85:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec85
 
 
 /*
@@ -1277,99 +1377,123 @@ CallPal_OpcDec85:
         ORG_CALL_PAL_UNPRIV(0x86)
 CallPal_Imb:
 	hw_rei
+ENDFN	CallPal_Imb
 
 
 	ORG_CALL_PAL_UNPRIV(0x87)
 CallPal_OpcDec87:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec87
 
 	ORG_CALL_PAL_UNPRIV(0x88)
 CallPal_OpcDec88:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec88
 
 	ORG_CALL_PAL_UNPRIV(0x89)
 CallPal_OpcDec89:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec89
 
 	ORG_CALL_PAL_UNPRIV(0x8A)
 CallPal_OpcDec8A:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec8A
 
 	ORG_CALL_PAL_UNPRIV(0x8B)
 CallPal_OpcDec8B:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec8B
 
 	ORG_CALL_PAL_UNPRIV(0x8C)
 CallPal_OpcDec8C:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec8C
 
 	ORG_CALL_PAL_UNPRIV(0x8D)
 CallPal_OpcDec8D:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec8D
 
 	ORG_CALL_PAL_UNPRIV(0x8E)
 CallPal_OpcDec8E:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec8E
 
 	ORG_CALL_PAL_UNPRIV(0x8F)
 CallPal_OpcDec8F:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec8F
 
 	ORG_CALL_PAL_UNPRIV(0x90)
 CallPal_OpcDec90:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec90
 
 	ORG_CALL_PAL_UNPRIV(0x91)
 CallPal_OpcDec91:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec91
 
 	ORG_CALL_PAL_UNPRIV(0x92)
 CallPal_OpcDec92:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec92
 
 	ORG_CALL_PAL_UNPRIV(0x93)
 CallPal_OpcDec93:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec93
 
 	ORG_CALL_PAL_UNPRIV(0x94)
 CallPal_OpcDec94:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec94
 
 	ORG_CALL_PAL_UNPRIV(0x95)
 CallPal_OpcDec95:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec95
 
 	ORG_CALL_PAL_UNPRIV(0x96)
 CallPal_OpcDec96:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec96
 
 	ORG_CALL_PAL_UNPRIV(0x97)
 CallPal_OpcDec97:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec97
 
 	ORG_CALL_PAL_UNPRIV(0x98)
 CallPal_OpcDec98:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec98
 
 	ORG_CALL_PAL_UNPRIV(0x99)
 CallPal_OpcDec99:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec99
 
 	ORG_CALL_PAL_UNPRIV(0x9A)
 CallPal_OpcDec9A:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec9A
 
 	ORG_CALL_PAL_UNPRIV(0x9B)
 CallPal_OpcDec9B:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec9B
 
 	ORG_CALL_PAL_UNPRIV(0x9C)
 CallPal_OpcDec9C:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec9C
 
 	ORG_CALL_PAL_UNPRIV(0x9D)
 CallPal_OpcDec9D:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDec9D
 
 /*
  * Read Unique Value
@@ -1382,6 +1506,7 @@ CallPal_OpcDec9D:
 CallPal_RdUnique:
 	mfpr	v0, qemu_unique
 	hw_rei
+ENDFN	CallPal_RdUnique
 
 /*
  * Write Unique Value
@@ -1394,47 +1519,58 @@ CallPal_RdUnique:
 CallPal_WrUnique:
 	mtpr	a0, qemu_unique
 	hw_rei
-
+ENDFN	CallPal_WrUnique
 
 	ORG_CALL_PAL_UNPRIV(0xA0)
 CallPal_OpcDecA0:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecA0
 
 	ORG_CALL_PAL_UNPRIV(0xA1)
 CallPal_OpcDecA1:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecA1
 
 	ORG_CALL_PAL_UNPRIV(0xA2)
 CallPal_OpcDecA2:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecA2
 
 	ORG_CALL_PAL_UNPRIV(0xA3)
 CallPal_OpcDecA3:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecA3
 
 	ORG_CALL_PAL_UNPRIV(0xA4)
 CallPal_OpcDecA4:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecA4
 
 	ORG_CALL_PAL_UNPRIV(0xA5)
 CallPal_OpcDecA5:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecA5
 
 	ORG_CALL_PAL_UNPRIV(0xA6)
 CallPal_OpcDecA6:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecA6
 
 	ORG_CALL_PAL_UNPRIV(0xA7)
 CallPal_OpcDecA7:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecA7
 
 	ORG_CALL_PAL_UNPRIV(0xA8)
 CallPal_OpcDecA8:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecA8
 
 	ORG_CALL_PAL_UNPRIV(0xA9)
 CallPal_OpcDecA9:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecA9
+
 /*
  * Generate Trap
  *
@@ -1454,87 +1590,107 @@ CallPal_GenTrap:
 	mfpr	$gp, ptKgp
 	mov	IF_K_GENTRAP, a0
 	hw_ret	(p0)
-
+ENDFN	CallPal_GenTrap
 
 	ORG_CALL_PAL_UNPRIV(0xAB)
 CallPal_OpcDecAB:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecAB
 
 	ORG_CALL_PAL_UNPRIV(0xAC)
 CallPal_OpcDecAC:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecAC
 
 	ORG_CALL_PAL_UNPRIV(0xAD)
 CallPal_OpcDecAD:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecAD
 
 	ORG_CALL_PAL_UNPRIV(0xAE)
 CallPal_OpcDecAE:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecAE
 
 	ORG_CALL_PAL_UNPRIV(0xAF)
 CallPal_OpcDecAF:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecAF
 
 	ORG_CALL_PAL_UNPRIV(0xB0)
 CallPal_OpcDecB0:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecB0
 
 	ORG_CALL_PAL_UNPRIV(0xB1)
 CallPal_OpcDecB1:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecB1
 
 	ORG_CALL_PAL_UNPRIV(0xB2)
 CallPal_OpcDecB2:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecB2
 
 	ORG_CALL_PAL_UNPRIV(0xB3)
 CallPal_OpcDecB3:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecB3
 
 	ORG_CALL_PAL_UNPRIV(0xB4)
 CallPal_OpcDecB4:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecB4
 
 	ORG_CALL_PAL_UNPRIV(0xB5)
 CallPal_OpcDecB5:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecB5
 
 	ORG_CALL_PAL_UNPRIV(0xB6)
 CallPal_OpcDecB6:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecB6
 
 	ORG_CALL_PAL_UNPRIV(0xB7)
 CallPal_OpcDecB7:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecB7
 
 	ORG_CALL_PAL_UNPRIV(0xB8)
 CallPal_OpcDecB8:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecB8
 
 	ORG_CALL_PAL_UNPRIV(0xB9)
 CallPal_OpcDecB9:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecB9
 
 	ORG_CALL_PAL_UNPRIV(0xBA)
 CallPal_OpcDecBA:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecBA
 
 	ORG_CALL_PAL_UNPRIV(0xBB)
 CallPal_OpcDecBB:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecBB
 
 	ORG_CALL_PAL_UNPRIV(0xBC)
 CallPal_OpcDecBC:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecBC
 
 	ORG_CALL_PAL_UNPRIV(0xBD)
 CallPal_OpcDecBD:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecBD
 
 	ORG_CALL_PAL_UNPRIV(0xBE)
 CallPal_OpcDecBE:
 	br	CallPal_OpcDec
+ENDFN	CallPal_OpcDecBE
 
 	ORG_CALL_PAL_UNPRIV(0xBF)
 CallPal_OpcDec:
@@ -1546,6 +1702,7 @@ CallPal_OpcDec:
 	mfpr	$gp, ptKgp
 	mov	IF_K_OPCDEC, a0
 	hw_ret	(p0)
+ENDFN	CallPal_OpcDec
 
 	.org	0x3000
 	.text	1
@@ -1621,6 +1778,7 @@ MchkCommon_SaveRegs:
 
 	blbs	p4, MchkDouble
 	blbs	p6, MchkFromPal
+ENDFN	MchkBugCheck
 
 /*
  * Common Machine Check Handler
@@ -1647,6 +1805,7 @@ MchkCommon:
 	mfpr	t5, ptMisc		// Load MCHK code
 	extwl	t5, 4, t5
 	andnot	t5, 1, t5
+ENDFN	MchkCommon
 
 /*
  * Build Machine Check Logout Frame
@@ -1779,22 +1938,25 @@ MchkLogOut:
 
 	mfpr	$gp, ptKgp
 	hw_ret	(p7)
-
+ENDFN	MchkLogOut
 
 MchkDouble:
 	bsr	p7, UpdatePCB
 	lda	v0, HLT_K_DBL_MCHK
 	br	Sys_EnterConsole
+ENDFN	MchkDouble
 
 MchkFromPal:
 	bsr	p7, UpdatePCB
 	lda	v0, HLT_K_MCHK_FROM_PAL
 	br	Sys_EnterConsole
+ENDFN	MchkFromPal
 
 MchkKspInvalid:
 	bsr	p7, UpdatePCB
 	lda	v0, HLT_K_KSP_INVAL
 	br	Sys_EnterConsole
+ENDFN	MchkKspInvalid
 
 /*
  * Update the current PCB with new SP and CC info.
@@ -1827,6 +1989,7 @@ UpdatePCB:
 	stq_p	p5, PCB_Q_UNIQUE(p4)
 
 	ret	$31, (p7), 0
+ENDFN	UpdatePCB
 
 /*
  * FIXME

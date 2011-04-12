@@ -8,13 +8,16 @@
 #define PAGE_SIZE	(1ul << PAGE_SHIFT)
 #define PAGE_OFFSET	0xfffffc0000000000UL
 
+#if 1
+#define PA(VA)		((unsigned long)(unsigned int)(VA))
+#else
+#define PA(VA)		((VA) - PAGE_OFFSET)
+#endif
+#define VA(PA)		((PA) + PAGE_OFFSET)
+
 #define HZ	1024
 
 struct pcb_struct pal_pcb __attribute__((section(".sbss")));
-
-unsigned long page_dir[1024] __attribute__((aligned(PAGE_SIZE)));
-unsigned long page_L1[1024] __attribute__((aligned(PAGE_SIZE)));
-unsigned long page_L2[1024][1024] __attribute__((aligned(PAGE_SIZE)));
 
 struct hwrpb_combine {
   struct hwrpb_struct hwrpb;
@@ -27,7 +30,7 @@ struct hwrpb_combine {
 
   .hwrpb.size = sizeof(struct hwrpb_struct),
   .hwrpb.pagesize = PAGE_SIZE,
-  .hwrpb.ssn = "QEMU",
+  .hwrpb.ssn = "MILO QEMU",
 
   /* ??? This should match TARGET_PHYS_ADDR_SPACE_BITS from qemu.  */
   .hwrpb.pa_bits = 44,
@@ -57,6 +60,20 @@ struct hwrpb_combine {
   .md.numclusters = 2,
   .mc[0].usage = 2
 };
+
+unsigned long page_dir[1024] __attribute__((aligned(PAGE_SIZE)));
+
+extern char _end[];
+static unsigned long last_alloc = (unsigned long)_end;
+
+static void *
+alloc (unsigned long size, unsigned long align)
+{
+  unsigned long p = (last_alloc + align - 1) & ~(align - 1);
+
+  last_alloc = p + size;
+  return (void *)p;
+}
 
 static unsigned long
 init_cpuid (void)
@@ -99,16 +116,11 @@ hwrpb_update_checksum (void)
 static void
 init_hwrpb (unsigned long memsize)
 {
-  unsigned long end, pal_pages;
+  unsigned long pal_pages;
 
-  hwrpb.hwrpb.phys_addr = (unsigned int)(unsigned long)&hwrpb;
+  hwrpb.hwrpb.phys_addr = PA((unsigned long)&hwrpb);
 
-  /* ??? For some reason GCC wants to use a LITERAL relocation for
-     _end instead of gp-relative relocations.  */
-  __asm ("ldah %0,_end($gp) !gprelhigh\n\tlda %0,_end(%0) !gprellow"
-         : "=r"(end));
-
-  pal_pages = ((unsigned int)end + PAGE_SIZE - 1) >> PAGE_SHIFT;
+  pal_pages = (PA(last_alloc) + PAGE_SIZE - 1) >> PAGE_SHIFT;
 
   hwrpb.mc[0].numpages = pal_pages;
   hwrpb.mc[1].start_pfn = pal_pages;
@@ -120,7 +132,7 @@ init_hwrpb (unsigned long memsize)
 static void
 init_pcb (void)
 {
-  pal_pcb.ptbr = (unsigned int)(unsigned long)page_dir;
+  pal_pcb.ptbr = PA((unsigned long)page_dir);
   pal_pcb.flags = 1;
 }
 
@@ -129,8 +141,8 @@ build_pte (void *page)
 {
   unsigned long bits;
 
-  bits = ((unsigned long)page - PAGE_OFFSET) << (32 - PAGE_SHIFT);
-  bits |= _PAGE_VALID;
+  bits = PA((unsigned long)page) << (32 - PAGE_SHIFT);
+  bits += _PAGE_VALID | _PAGE_KRE | _PAGE_KWE;
 
   return bits;
 }
@@ -138,7 +150,7 @@ build_pte (void *page)
 static inline void *
 pte_page (unsigned long pte)
 {
-  return (void *)((pte >> 32 << PAGE_SHIFT) + PAGE_OFFSET);
+  return (void *)VA(pte >> 32 << PAGE_SHIFT);
 }
 
 static void
@@ -151,57 +163,50 @@ set_pte (unsigned long addr, void *page)
   if (pt[index] != 0)
     pt = pte_page (pt[index]);
   else
-    __builtin_trap();
+    {
+      unsigned long *npt = alloc(PAGE_SIZE, PAGE_SIZE);
+      pt[index] = build_pte (npt);
+      pt = npt;
+    }
 
   index = (addr >> (PAGE_SHIFT+10)) % 1024;
   if (pt[index] != 0)
     pt = pte_page (pt[index]);
   else
-    __builtin_trap();
+    {
+      unsigned long *npt = alloc(PAGE_SIZE, PAGE_SIZE);
+      pt[index] = build_pte (npt);
+      pt = npt;
+    }
 
   index = (addr >> PAGE_SHIFT) % 1024;
   pt[index] = build_pte (page);
 }
 
 static void
-init_page_table (unsigned long memsize, unsigned long pal_pages)
+init_page_table (unsigned long memsize)
 {
   unsigned long i, addr, max_addr, page;
 
-  page_dir[0] = build_pte (page_L1);
-
-  for (i = 0; i < 1024; ++i)
-    page_L1[i] = build_pte (page_L2[i]);
-
   set_pte ((unsigned long)INIT_HWRPB, &hwrpb);
   
-  addr = 0x20000000ul;
-  max_addr = 1ul << (PAGE_SHIFT + 20);
-  page = pal_pages << PAGE_SHIFT;
-
-  while (addr < max_addr && page < memsize)
-    {
-      set_pte (addr, (void *)(PAGE_OFFSET + page));
-      addr += PAGE_SIZE;
-      page += PAGE_SIZE;
-    }
-
   /* SRM places the self-map for the VPTBR in the second entry.  */
-  page_dir[1] = build_pte (page_dir);
+  /* MILO places the self-map for the VPTBR in the last entry.  */
+  page_dir[1023] = build_pte (page_dir);
 
   /* Write the SRM vptptr.  */
   {
-    register unsigned long a0 __asm__("$16") = max_addr;
+    register unsigned long a0 __asm__("$16") = 0xfffffffe00000000UL;
     __asm ("call_pal 0x2d" : : "r"(a0));
   }
 }
 
 void
-do_start(unsigned long memsize)
+do_start(unsigned long memsize, void (*kernel_entry)(void))
 {
+  init_page_table (memsize);
   init_hwrpb (memsize);
   init_pcb ();
-  init_page_table (memsize, hwrpb.mc[0].numpages);
 
   uart_init ();
   uart_puts (COM1, "Hello, World!\n");

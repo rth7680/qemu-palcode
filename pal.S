@@ -189,6 +189,7 @@ __start:
 
 	// Load the initial PCB and page table elements.
 	lda	t0, page_dir($gp)		!gprel
+	zap	t0, 0xf0, t0
 	mtpr	t0, qemu_ptbr
 
 	lda	t0, pal_pcb($gp)		!gprel

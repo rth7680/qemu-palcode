@@ -265,6 +265,7 @@ Pal_Interrupt:
 Pal_MMFault:
 	mfpr	p0, qemu_ps
 	mfpr	p6, qemu_exc_addr
+	blbs	p6, MchkBugCheck
 
 	STACK_FRAME p0, p6, p2
 

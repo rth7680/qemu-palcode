@@ -209,7 +209,7 @@ static void
 init_pcb (void)
 {
   pcb.ksp = (unsigned long)stack + sizeof(stack);
-  pcb.ptbr = PA(page_dir);
+  pcb.ptbr = PA(page_dir) >> PAGE_SHIFT;
   pcb.flags = 1; /* FEN */
 }
 

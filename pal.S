@@ -565,11 +565,14 @@ CallPal_SwpPal_Cont:
 	ldq_p	t4, PCB_Q_FEN(a2)
 
 	mtpr	t0, ptUsp
+
+	sll	t1, VA_S_OFF, t1
 	mtpr	t1, qemu_ptbr
-	mtpr	t3, qemu_unique
 
 	subl	t2, p0, t2
 	mtpr	t2, qemu_pcc_ofs
+
+	mtpr	t3, qemu_unique
 
 	and	t4, 1, t4
 	mtpr	t4, qemu_fen
@@ -908,6 +911,7 @@ CallPal_SwpCtx_Cont:
 	// QEMU does not implement an ASN; skip that.
 
 	ldq_p	t10, PCB_Q_PTBR(a0)	// Install new page tables
+	sll	t10, VA_S_OFF, t10
 	mtpr	t10, qemu_ptbr
 	mtpr	$31, qemu_tbia		// Flush TLB, since we don't do ASNs
 

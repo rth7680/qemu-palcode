@@ -182,7 +182,7 @@
 __start:
 	// Initialize GP and stack.
 	br	$gp, .+4
-	ldah	$gp, 0($gp)		!gpdisp!1
+	ldah	$gp, 0($gp)			!gpdisp!1
 	lda	$gp, 0($gp)			!gpdisp!1
 	mtpr	$gp, ptPgp
 
@@ -191,15 +191,6 @@ __start:
 	// Disable interrupts; kernel mode
 	lda	t0, IPL_K_HIGH
 	mtpr	t0, qemu_ps
-
-	// Load the initial PCB and page table elements.
-	lda	t0, page_dir($gp)		!gprel
-	zap	t0, 0xf0, t0
-	mtpr	t0, qemu_ptbr
-
-	lda	t0, pal_pcb($gp)		!gprel
-	zap	t0, 0xf0, t0
-	mtpr	t0, ptPcbb
 
 	// Make sure kernel entry points are invalid.
 	lda	t0, -1
@@ -538,6 +529,12 @@ ENDFN	CallPal_Cserve
  *			0 - Success (PALcode was switched)
  *			1 - Unknown PALcode variant
  *			2 - Known PALcode variant, but PALcode not loaded
+ *
+ *	r26 (ra) = r27 (pv) = New PC
+ *		Note that this is non-architected, but is relied on by
+ *		the usage of SwpPal within our own console code in order
+ *		to simplify its use within C code.
+ *
  */
 	ORG_CALL_PAL_PRIV(0x0A)
 CallPal_SwpPal:
@@ -556,8 +553,32 @@ ENDFN	CallPal_SwpPal
 
 	.text	1
 CallPal_SwpPal_Cont:
-	// YOUAREHERE
-	halt
+	rpcc	p0
+	mtpr	a2, ptPcbb
+	mtpr	a3, qemu_vptptr
+
+	ldq_p	$sp, PCB_Q_KSP(a2)
+	ldq_p	t0, PCB_Q_USP(a2)
+	ldq_p	t1, PCB_Q_PTBR(a2)
+	ldl_p	t2, PCB_L_PCC(a2)
+	ldq_p	t3, PCB_Q_UNIQUE(a2)
+	ldq_p	t4, PCB_Q_FEN(a2)
+
+	mtpr	t0, ptUsp
+	mtpr	t1, qemu_ptbr
+	mtpr	t3, qemu_unique
+
+	subl	t2, p0, t2
+	mtpr	t2, qemu_pcc_ofs
+
+	and	t4, 1, t4
+	mtpr	t4, qemu_fen
+
+	mtpr	$31, qemu_tbia		// Flush TLB for new PTBR
+
+	mov	a1, $26
+	mov	a1, $27
+	hw_ret	(a1)
 ENDFN	CallPal_SwpPal_Cont
 	.previous
 
@@ -2050,6 +2071,7 @@ $laf_size		= . - laf_base
 	.size	laf_base, . - laf_base
 
 	.align 3
+	.globl	stack
 	.type	stack,@object
 	.size	stack,STACK_SIZE
 stack:	.skip	STACK_SIZE

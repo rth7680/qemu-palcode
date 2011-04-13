@@ -5,7 +5,7 @@ SECTIONS
 {
   . = 0xfffffc0000000000;
   .text : { *(.text*) }
-  .rodata : { *(.rodata) }
+  .rodata : { *(.rodata*) }
   .data ALIGN(8192) : { *(.data.hwrpb) *(.data*) }
   .got : { *(.got.plt) *(.got) }
   .sdata : { *(.sdata*) }

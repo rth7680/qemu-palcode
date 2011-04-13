@@ -2,7 +2,7 @@ CROSS = alphaev67-linux-
 CC = $(CROSS)gcc
 LD = $(CROSS)ld
 
-CFLAGS = -O -g -fvisibility=hidden -fno-strict-aliasing \
+CFLAGS = -O -g -Wall -fvisibility=hidden -fno-strict-aliasing \
   -msmall-text -msmall-data -mno-fp-regs -mbuild-constants
 
 OBJS = pal.o init.o uart.o memset.o printf.o

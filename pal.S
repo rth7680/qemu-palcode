@@ -137,12 +137,14 @@
 #define FRM_Q_A2        40
 #define FRM_K_SIZE      48
 
-.macro	STACK_FRAME save_ps, save_pc, temp
+.macro	STACK_FRAME save_ps, save_pc, temp, do_ps
 	// Test if we're currently in user mode
 	and	\save_ps, PS_M_CM, \temp
 	beq	\temp, 0f
 	// Switch to kernel mode
+.ifne \do_ps
 	mtpr	$31, qemu_ps
+.endif
 	mtpr	$sp, ptUsp
 	mfpr	$sp, ptKsp
 	// Allocate the stack frame
@@ -253,11 +255,14 @@ Pal_Interrupt:
 	mfpr	p6, qemu_exc_addr
 	mfpr	p0, qemu_ps
 
-	STACK_FRAME p0, p6, p2
+	STACK_FRAME p0, p6, p2, 0
+
+	mov	IPL_K_HIGH, p0		// Raise IPL
+	mtpr	p0, qemu_ps
 
 	mfpr	p0, ptEntInt
 	mfpr	$gp, ptKgp
-	mfpr	a0, qemu_trap_arg0
+	mfpr    a0, qemu_trap_arg0
 	hw_ret	(p0)
 ENDFN	Pal_Interrupt
 
@@ -276,7 +281,7 @@ Pal_MMFault:
 	mfpr	p6, qemu_exc_addr
 	blbs	p6, MchkBugCheck
 
-	STACK_FRAME p0, p6, p2
+	STACK_FRAME p0, p6, p2, 1
 
 	mfpr	p0, ptEntMM
 	mfpr	$gp, ptKgp
@@ -302,7 +307,7 @@ Pal_Unalign:
 	addq	p6, 4, p1		// increment past the faulting insn
 	blbs	p6, MchkBugCheck
 
-	STACK_FRAME p0, p1, p2
+	STACK_FRAME p0, p1, p2, 1
 
 	mfpr	p0, ptEntUna
 	mfpr	$gp, ptKgp
@@ -334,7 +339,7 @@ Pal_OpcDec:
 	addq	p6, 4, p1		// increment past the faulting insn
 	blbs	p6, MchkBugCheck
 
-	STACK_FRAME p0, p1, p2
+	STACK_FRAME p0, p1, p2, 1
 
 	mfpr	p0, ptEntIF
 	mfpr	$gp, ptKgp
@@ -357,7 +362,7 @@ Pal_Arith:
 	mfpr	p6, qemu_exc_addr
 	blbs	p6, MchkBugCheck
 
-	STACK_FRAME p0, p6, p2
+	STACK_FRAME p0, p6, p2, 1
 
 	mfpr	p0, ptEntArith
 	mfpr	$gp, ptKgp
@@ -387,7 +392,7 @@ Pal_Fen:
 	mfpr	p6, qemu_exc_addr
 	blbs	p6, MchkBugCheck
 
-	STACK_FRAME p0, p6, p2
+	STACK_FRAME p0, p6, p2, 1
 
 	mfpr	p0, ptEntIF
 	mfpr	$gp, ptKgp
@@ -1945,7 +1950,7 @@ MchkLogOut:
 	mfpr	p5, qemu_ps
 	mfpr	p6, ptMchk5		// Reload exc_addr for double mchk
 
-	STACK_FRAME	p5, p6, p7
+	STACK_FRAME	p5, p6, p7, 0
 
 	mov	IPL_K_MCHK, p5		// Raise IPL
 	mtpr	p5, qemu_ps

@@ -241,30 +241,77 @@ Pal_Mchk:
 ENDFN	Pal_Mchk
 
 /*
- * Interrupt
+ * Clock Interrupt
  *
  * INPUT PARAMETERS:
  *
- *	trap_arg0 = interrupt type
- *	trap_arg1 = UNDEFINED
- *	trap_arg2 = UNDEFINED
- */ 
+ *	trap_arg0 = 
+ *	trap_arg1 =
+ *	trap_arg2 =
+ *
+ * The clock interrupt is special, in that PALcode is supposed
+ * to clear the interupt and not wait for the OS to do it.
+ */
 	.org	0x0100
-	.type	Pal_Interrupt, @function
-Pal_Interrupt:
+Pal_Clk_Interrupt:
+	mfpr	p6, qemu_exc_addr
+
+	// Load CIA_BW_IO.  Note that this is the KSEG address,
+	// since there is no hw_stb with physical address access.
+	lda	p0, -887
+	sll	p0, 32, p0
+
+	mov	0xc, p1			// Set RTCADD (0x70) to index register 0xC
+	stb	p1, 0x70(p0)
+	ldbu	p1, 0x71(p0)		// Read RTCDAT to clear interrupt.
+
+#if 0
+	and	p1, 0x40, p1		// Check for real interrupt.
+	bne	p1, 9f			// If not, exit now, no stack frame.
+#endif
+
+	mfpr	p0, qemu_ps
+
+	STACK_FRAME p0, p6, p2, 0
+
+	mov	IPL_K_CLK, p0		// Raise IPL
+	mtpr	p0, qemu_ps
+
+	mfpr	p6, ptEntInt
+	mfpr	$gp, ptKgp
+	lda	a0, INT_K_CLK
+	lda	a1, 0
+	lda	a2, 0
+
+9:	hw_ret	(p6)
+ENDFN	Pal_Clk_Interrupt
+
+/*
+ * Device Interrupt
+ *
+ * INPUT PARAMETERS:
+ *
+ *	trap_arg0 = 
+ *	trap_arg1 =
+ *	trap_arg2 =
+ */ 
+	.org	0x0180
+Pal_Dev_Interrupt:
 	mfpr	p6, qemu_exc_addr
 	mfpr	p0, qemu_ps
 
 	STACK_FRAME p0, p6, p2, 0
 
-	mov	IPL_K_HIGH, p0		// Raise IPL
+	mov	IPL_K_DEV1, p0		// Raise IPL
 	mtpr	p0, qemu_ps
 
-	mfpr	p0, ptEntInt
+	mfpr	p7, ptEntInt
 	mfpr	$gp, ptKgp
-	mfpr    a0, qemu_trap_arg0
-	hw_ret	(p0)
-ENDFN	Pal_Interrupt
+	lda	a0, INT_K_DEV
+	lda	a1, 0x800
+	lda	a2, 0
+	hw_ret	(p7)
+ENDFN	Pal_Dev_Interrupt
 
 /*
  * Memory Fault
@@ -275,7 +322,7 @@ ENDFN	Pal_Interrupt
  *	trap_arg1 = fault type (TNV, ACV, FOR, FOW, FOE)
  *	trap_arg2 = access type (exec=-1, read=0, write=1)
  */ 
-	.org	0x0180
+	.org	0x0200
 Pal_MMFault:
 	mfpr	p0, qemu_ps
 	mfpr	p6, qemu_exc_addr
@@ -300,7 +347,7 @@ ENDFN	Pal_MMFault
  *	trap_arg1 = opcode of faulting insn
  *	trap_arg2 = src/dst register number
  */ 
-	.org	0x0200
+	.org	0x0280
 Pal_Unalign:
 	mfpr	p0, qemu_ps
 	mfpr	p6, qemu_exc_addr
@@ -332,7 +379,7 @@ ENDFN	Pal_Unalign
  *	r17 (a1) = UNPREDICTABLE
  *	r18 (a2) = UNPREDICTABLE
  */ 
-	.org	0x0280
+	.org	0x0300
 Pal_OpcDec:
 	mfpr	p0, qemu_ps
 	mfpr	p6, qemu_exc_addr
@@ -356,7 +403,7 @@ ENDFN	Pal_OpcDec
  *	trap_arg1 = register modification mask
  *	trap_arg2 = UNDEFINED
  */
-	.org	0x0300
+	.org	0x0380
 Pal_Arith:
 	mfpr	p0, qemu_ps
 	mfpr	p6, qemu_exc_addr
@@ -386,7 +433,7 @@ ENDFN	Pal_Arith
  *	r17 (a1) = UNPREDICTABLE
  *	r18 (a2) = UNPREDICTABLE
  */ 
-	.org	0x0380
+	.org	0x0400
 Pal_Fen:
 	mfpr	p0, qemu_ps
 	mfpr	p6, qemu_exc_addr

@@ -1298,11 +1298,11 @@ CallPal_Rti:
 	ldq	p5, FRM_Q_PC($sp)	// Get the return PC
 	ldq	$gp, FRM_Q_GP($sp)	// Get gp
 	ldq	a0, FRM_Q_A0($sp)	// Get a0
-
-	ldq	a1, FRM_Q_A1(p7)	// Get a1
-	ldq	a2, FRM_Q_A2(p7)	// Get a2
+	ldq	a1, FRM_Q_A1($sp)	// Get a1
+	ldq	a2, FRM_Q_A2($sp)	// Get a2
 	lda	$sp, FRM_K_SIZE($sp)	// Pop the stack
-	bic	p5, 3, p5		// Clean return PC<1:0>
+
+	andnot	p5, 3, p5		// Clean return PC<1:0>
 
 	and	p4, PS_M_CM, p3
 	bne	p3, CallPal_Rti_ToUser
@@ -1314,13 +1314,12 @@ ENDFN	CallPal_Rti
 
 	.text	1
 CallPal_Rti_ToUser:
-	mtpr	p4, qemu_ps
+	mtpr	p3, qemu_ps
 	mtpr	$sp, ptKsp
 	mfpr	$sp, ptUsp
 	hw_ret	(p5)
 ENDFN	CallPal_Rti_ToUser
 	.previous
-
 
 /*
  * OSF/1 Unprivileged CALL_PAL Entry Points

@@ -4,7 +4,7 @@ void *memset(void *optr, int ival, unsigned long size)
   void *ptr = optr;
 
   if (__builtin_expect (size == 0, 0))
-    return;
+    return optr;
 
   if (__builtin_expect (val != 0, 0))
     {

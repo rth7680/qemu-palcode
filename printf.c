@@ -14,8 +14,16 @@ static int print_decimal(unsigned long val)
     {
       do
 	{
-	  *--p = (val % 10) + '0';
-	  val /= 10;
+	  unsigned long d, r;
+
+	  /* Compiling with -Os results in a call to the division routine.
+	     Do what the compiler ought to have done.  */
+	  d = __builtin_alpha_umulh(val, 0xcccccccccccccccd);
+	  d >>= 3;
+	  r = val - (d * 10);
+
+	  *--p = r + '0';
+	  val = d;
 	}
       while (val);
     }

@@ -47,7 +47,8 @@
 #define qemu_ptbr	8
 #define qemu_vptptr	9
 #define qemu_unique	10
-#define qemu_lock_addr	11
+#define qemu_sysval	11
+#define qemu_usp	12
 
 #define qemu_shadow0	32
 #define qemu_shadow1	33
@@ -89,26 +90,24 @@
 #define qemu_tbis	254
 
 /* PALcode uses of the private storage slots.  */
-#define ptEntUna	pt1
-#define ptEntIF		pt2
-#define ptEntSys	pt3
-#define ptEntInt	pt4
-#define ptEntArith	pt5
-#define ptEntMM		pt6
-#define ptMces		pt7
-#define ptSysVal	pt8
-#define ptUsp		pt9
-#define ptKsp		pt10
-#define ptKgp		pt11
-#define ptPcbb		pt12
-#define ptPgp		pt13
-#define ptMchk0		pt14
-#define ptMchk1		pt15
-#define ptMisc		pt16
-#define ptMchk2		pt17
-#define ptMchk3		pt18
-#define ptMchk4		pt19
-#define ptMchk5		pt20
+#define ptEntUna	pt0
+#define ptEntIF		pt1
+#define ptEntSys	pt2
+#define ptEntInt	pt3
+#define ptEntArith	pt4
+#define ptEntMM		pt5
+#define ptMces		pt6
+#define ptKsp		pt7
+#define ptKgp		pt8
+#define ptPcbb		pt9
+#define ptPgp		pt10
+#define ptMisc		pt11
+#define ptMchk0		pt12
+#define ptMchk1		pt13
+#define ptMchk2		pt14
+#define ptMchk3		pt15
+#define ptMchk4		pt16
+#define ptMchk5		pt17
 
 /*
  * Shortcuts for various PALmode instructions.
@@ -145,7 +144,7 @@
 .ifne \do_ps
 	mtpr	$31, qemu_ps
 .endif
-	mtpr	$sp, ptUsp
+	mtpr	$sp, qemu_usp
 	mfpr	$sp, ptKsp
 	// Allocate the stack frame
 0:	lda	$sp, -FRM_K_SIZE($sp)
@@ -616,7 +615,7 @@ CallPal_SwpPal_Cont:
 	ldq_p	t3, PCB_Q_UNIQUE(a2)
 	ldq_p	t4, PCB_Q_FEN(a2)
 
-	mtpr	t0, ptUsp
+	mtpr	t0, qemu_usp
 
 	sll	t1, VA_S_OFF, t1
 	mtpr	t1, qemu_ptbr
@@ -939,7 +938,7 @@ CallPal_SwpCtx:
 	mtpr	p5, qemu_pcc_ofs	// .. set new CC<OFFSET> bits
 
 	stq_p	$sp, PCB_Q_KSP(v0)	// Store old kernel stack pointer
-	mfpr	t10, ptUsp		// Save old user stack pointer
+	mfpr	t10, qemu_usp		// Save old user stack pointer
 	stq_p	t10, PCB_Q_USP(v0)
 
 	br	CallPal_SwpCtx_Cont
@@ -949,7 +948,7 @@ ENDFN	CallPal_SwpCtx
 CallPal_SwpCtx_Cont:
 	ldq_p	$sp, PCB_Q_KSP(v0)	// Install new stack pointers
 	ldq_p	t10, PCB_Q_USP(v0)
-	mtpr	t10, ptUsp
+	mtpr	t10, qemu_usp
 
 	mfpr	t10, qemu_unique	// Save old unique value
 	stq_p	t10, PCB_Q_UNIQUE(v0)
@@ -984,7 +983,7 @@ ENDFN	CallPal_SwpCtx_Cont
  */ 
         ORG_CALL_PAL_PRIV(0x31)
 CallPal_WrVal:
-	mtpr	a0, ptSysVal
+	mtpr	a0, qemu_sysval
 	hw_rei
 ENDFN	CallPal_WrVal
 
@@ -1001,7 +1000,7 @@ ENDFN	CallPal_WrVal
  */ 
         ORG_CALL_PAL_PRIV(0x32)
 CallPal_RdVal:
-	mfpr	v0, ptSysVal
+	mfpr	v0, qemu_sysval
 	hw_rei
 ENDFN	CallPal_RdVal
 
@@ -1154,7 +1153,7 @@ ENDFN	CallPal_WrKgp
  */ 
         ORG_CALL_PAL_PRIV(0x38)
 CallPal_WrUsp:
-	mtpr	a0, ptUsp
+	mtpr	a0, qemu_usp
 	hw_rei
 ENDFN	CallPal_WrUsp
 
@@ -1188,7 +1187,7 @@ ENDFN	CallPal_WrPerfMon
  */ 
         ORG_CALL_PAL_PRIV(0x3A)
 CallPal_RdUsp:
-	mfpr	v0, ptUsp
+	mfpr	v0, qemu_usp
 	hw_rei
 ENDFN	CallPal_RdUsp
 
@@ -1241,7 +1240,7 @@ CallPal_RetSys:
 	mov	PS_K_USER, t8		// Set new mode to user
 	mtpr	t8, qemu_ps
 
-	mfpr	$sp, ptUsp		// Get the user stack pointer
+	mfpr	$sp, qemu_usp		// Get the user stack pointer
 
 	andnot	t9, 3, t9		// Clean return PC<1:0>
 	hw_ret	(t9)
@@ -1316,7 +1315,7 @@ ENDFN	CallPal_Rti
 CallPal_Rti_ToUser:
 	mtpr	p3, qemu_ps
 	mtpr	$sp, ptKsp
-	mfpr	$sp, ptUsp
+	mfpr	$sp, qemu_usp
 	hw_ret	(p5)
 ENDFN	CallPal_Rti_ToUser
 	.previous
@@ -1350,7 +1349,7 @@ CallPal_Stack_Frame:
 CallPal_Stack_Frame_FromUser:
 	// Switch to kernel mode
 	mtpr	$31, qemu_ps
-	mtpr	$sp, ptUsp
+	mtpr	$sp, qemu_usp
 	mfpr	$sp, ptKsp
 0:
 	// Allocate the stack frame
@@ -1979,8 +1978,7 @@ MchkLogOut:
 	stq_p	$31, laf_q_ei_addr - laf_base(p6)
 	stq_p	$31, laf_q_fill_syndrome - laf_base(p6)
 	stq_p	$31, laf_q_ei_stat - laf_base(p6)
-
-	STORE_IPR qemu_lock_addr, laf_q_ld_lock - laf_base, p6
+	stq_p	$31, laf_q_ld_lock - laf_base(p6)
 
 	// bsr v0, Sys_MchkLogOut
 
@@ -2050,7 +2048,7 @@ UpdatePCB:
 	and	p3, PS_M_CM, p3
 	beq	p3, 1f
 
-	mtpr	$sp, ptUsp		// Save user stack pointer
+	mtpr	$sp, qemu_usp		// Save user stack pointer
 	stq_p	$sp, PCB_Q_USP(p4)
 	br	2f
 

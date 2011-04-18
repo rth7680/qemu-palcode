@@ -1,3 +1,2 @@
 *.o
-palcode
-palcode.map
+palcode-*

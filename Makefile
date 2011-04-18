@@ -9,10 +9,10 @@ CFLAGS += -mcpu=pca56
 
 OBJS = pal.o init.o uart.o memset.o printf.o
 
-all: palcode
+all: palcode-sx164
 
-palcode: palcode.ld $(OBJS)
-	$(LD) -relax -o $@ -T palcode.ld -Map palcode.map $(OBJS)
+palcode-sx164: palcode.ld $(OBJS)
+	$(LD) -relax -o $@ -T palcode.ld -Map $@.map $(OBJS)
 
 clean:
 	rm -f *.o

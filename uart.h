@@ -53,10 +53,13 @@ your own risk.
 #define COM1	(com1Rbr - com2Rbr)
 #define COM2	0
 
+#ifndef __ASSEMBLER__
+
 extern int uart_charav(int port);
 extern int uart_getchar(int port);
 extern void uart_putchar(int port, char c);
 extern void uart_puts(int port, const char *s);
 extern void uart_init(void);
 
-#endif				/* __UART_H_LOADED */
+#endif /* __ASSEMBLER__ */
+#endif /* __UART_H_LOADED */

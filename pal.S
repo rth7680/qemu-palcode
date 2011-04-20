@@ -3,6 +3,7 @@
 	.text
 
 #include "osf.h"
+#include "uart.h"
 
 /* General Purpose Registers.  */
 #define	v0	$0
@@ -532,8 +533,8 @@ ENDFN	CallPal_OpcDec08
  * 
  * INPUT PARAMETERS:
  * 
- *	r0 (v0)           = Option selector
- *	r16..r21 (a0..a5) = Implementation specific entry parameters
+ *	r16 (a0)          = Option selector
+ *	r17..r21 (a1..a5) = Implementation specific entry parameters
  * 
  * SIDE EFFECTS:
  *
@@ -541,8 +542,63 @@ ENDFN	CallPal_OpcDec08
  */ 
 	ORG_CALL_PAL_PRIV(0x09)
 CallPal_Cserve:
-	br	Sys_Cserve
+	cmpeq	a0, 15, v0
+	bne	v0, Cserve_putc
+	cmpeq	a0, 52, v0
+	bne	v0, Cserve_ena
+	cmpeq	a0, 53, v0
+	bne	v0, Cserve_dis
+	hw_rei
 ENDFN	CallPal_Cserve
+
+	.text	1
+Cserve_putc:
+	// Load CIA_BW_IO.  Note that this is the KSEG address,
+	// since there is no hw_stb with physical address access.
+	lda	p0, -887
+	sll	p0, 32, p0
+
+	ldbu	v0, com1Lsr(p0)		// Get Transmit Holding Register Empty
+	and	v0, 0x20, v0
+	beq	v0, 1f
+
+	stb	a1, com1Thr(p0)		// Output the byte
+	mov	1, v0
+1:	hw_rei
+ENDFN	Cserve_putc
+
+Cserve_ena:
+	lda	p0, 0x87a		// Load PYXIS INT REG base.
+	sll	p0, 28, p0
+
+	lda	p1, 1			// Shift the interrupt line in place.
+	sll	p1, a1, p1
+
+	ldq_p	p2, 0x40(p0)		// Load PYXIS_INT_MASK
+	sll	p2, a1, v0		// Return the current setting
+	and	v0, 1, v0
+	andnot	p2, p1, p2		// Clear the bit
+	stq_p	p2, 0x40(p0)		// Store PYXIS_INT_MASK
+
+	hw_rei
+ENDFN	Cserve_ena
+
+Cserve_dis:
+	lda	p0, 0x87a		// Load PYXIS INT REG base.
+	sll	p0, 28, p0
+
+	lda	p1, 1			// Shift the interrupt line in place.
+	sll	p1, a1, p1
+
+	ldq_p	p2, 0x40(p0)		// Load PYXIS_INT_MASK
+	sll	p2, a1, v0		// Return the current setting
+	and	v0, 1, v0
+	or	p2, p1, p2		// Set the bit
+	stq_p	p2, 0x40(p0)		// Store PYXIS_INT_MASK
+
+	hw_rei
+ENDFN	Cserve_dis
+	.previous
 
 /*
  * Swap PALcode
@@ -2068,7 +2124,6 @@ ENDFN	UpdatePCB
  * FIXME
  */
 Sys_EnterConsole:
-Sys_Cserve:
 	halt
 
 /*

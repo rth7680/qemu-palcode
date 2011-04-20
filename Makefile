@@ -18,5 +18,9 @@ clean:
 	rm -f *.o
 	rm -f palcode palcode.map
 
-pal.o: pal.S osf.h
+pal.o: pal.S osf.h uart.h
 	$(CC) $(CFLAGS) -c -Wa,-m21264 -Wa,--noexecstack -o $@ $<
+
+init.o: init.c hwrpb.h osf.h uart.h
+printf.o: printf.c uart.h
+uart.o: uart.c uart.h io.h cia.h

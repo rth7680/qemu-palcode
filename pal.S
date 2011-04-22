@@ -88,6 +88,7 @@
 /* QEMU function calls, via mtpr.  */
 #define qemu_tbia	255
 #define qemu_tbis	254
+#define qemu_wait	253
 
 /* PALcode uses of the private storage slots.  */
 #define ptEntUna	pt0
@@ -1258,18 +1259,16 @@ ENDFN	CallPal_RetSys
  *
  * INPUT PARAMETERS:
  * 
- *	???
+ *	r16 (a0) = Maximum number of clock ticks to skip
  * 
  * OUTPUT PARAMETERS:
  *
- *	???
- * 
- * SIDE EFFECTS:
- *
- *	???
+ *	r0 (v0) = Number of clock ticks actually skipped.
  */
 	ORG_CALL_PAL_PRIV(0x3E)
 CallPal_WtInt:
+	mtpr	$31, qemu_wait
+	mov	0, v0
 	hw_rei
 ENDFN	CallPal_WtInt
 

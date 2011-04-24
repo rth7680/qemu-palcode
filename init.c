@@ -177,9 +177,7 @@ init_hwrpb (unsigned long memsize)
   hwrpb.processor.type = PCA56_CPU;
 
   hwrpb.hwrpb.intr_freq = HZ * 4096;
-
-  /* ??? What the hell should we put here.  Measure like the kernel will?  */
-  hwrpb.hwrpb.cycle_freq = 400000000;
+  hwrpb.hwrpb.cycle_freq = 250000000;	/* QEMU architects 250MHz.  */
 
   hwrpb.hwrpb.vptb = VPTPTR;
 

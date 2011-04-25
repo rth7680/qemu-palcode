@@ -1003,8 +1003,8 @@ ENDFN	CallPal_SwpCtx
 
 	.text	1
 CallPal_SwpCtx_Cont:
-	ldq_p	$sp, PCB_Q_KSP(v0)	// Install new stack pointers
-	ldq_p	t10, PCB_Q_USP(v0)
+	ldq_p	$sp, PCB_Q_KSP(a0)	// Install new stack pointers
+	ldq_p	t10, PCB_Q_USP(a0)
 	mtpr	t10, qemu_usp
 
 	mfpr	t10, qemu_unique	// Save old unique value

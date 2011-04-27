@@ -110,39 +110,11 @@ init_page_table(void)
      loaded into KSEG.  */
 }
 
-static inline unsigned long
-init_cpuid (void)
-{
-  unsigned long implver, amask;
-
-  implver = __builtin_alpha_implver();
-  amask = ~__builtin_alpha_amask(-1);
-
-  switch (implver)
-    {
-    case 0: /* EV4 */
-      return EV4_CPU;
-
-    case 1: /* EV5 */
-      if ((amask & 0x101) == 0x101)	/* MAX + BWX */
-	return PCA56_CPU;
-      if (amask & 1)			/* BWX */
-	return EV56_CPU;
-      return EV5_CPU;
-
-    case 2: /* EV6 */
-      if (amask & 4)			/* CIX */
-	return EV67_CPU;
-      return EV6_CPU;
-    }
-    return 0;
-}
-
 static void
 init_hwrpb (unsigned long memsize)
 {
   unsigned long pal_pages;
-  unsigned long cpu_type;
+  unsigned long amask;
   
   hwrpb.hwrpb.phys_addr = PA(&hwrpb);
 
@@ -168,16 +140,34 @@ init_hwrpb (unsigned long memsize)
 				| 'M' << 24);
   ((int *)hwrpb.hwrpb.ssn)[2] = ( 'U' << 0);
 
-  /* For now, hard-code emulation of sx164.  */
-  cpu_type = init_cpuid();
-  hwrpb.hwrpb.cpuid = cpu_type;
+  amask = ~__builtin_alpha_amask(-1);
+  switch (__builtin_alpha_implver())
+    {
+    case 0: /* EV4 */
+      hwrpb.hwrpb.cpuid = EV4_CPU;
+      hwrpb.hwrpb.max_asn = 63;
+      break;
+
+    case 1: /* EV5 */
+      hwrpb.hwrpb.cpuid
+	= ((amask & 0x101) == 0x101 ? PCA56_CPU		/* MAX+BWX */
+	   : amask & 1 ? EV56_CPU			/* BWX */
+	   : EV5_CPU);
+      hwrpb.hwrpb.max_asn = 127;
+      break;
+
+    case 2: /* EV6 */
+      hwrpb.hwrpb.cpuid = (amask & 4 ? EV67_CPU : EV6_CPU);  /* CIX */
+      hwrpb.hwrpb.max_asn = 255;
+      break;
+    }
+
   hwrpb.hwrpb.pagesize = PAGE_SIZE;
   hwrpb.hwrpb.pa_bits = 40;
-  hwrpb.hwrpb.max_asn = 127;
   hwrpb.hwrpb.sys_type = SYS_TYPE;
   hwrpb.hwrpb.sys_variation = SYS_VARIATION;
   hwrpb.hwrpb.sys_revision = SYS_REVISION;
-  hwrpb.processor.type = cpu_type;
+  hwrpb.processor.type = hwrpb.hwrpb.cpuid;
 
   hwrpb.hwrpb.intr_freq = HZ * 4096;
   hwrpb.hwrpb.cycle_freq = 250000000;	/* QEMU architects 250MHz.  */

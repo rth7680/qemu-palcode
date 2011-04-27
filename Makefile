@@ -2,25 +2,28 @@ CROSS = alphaev67-linux-
 CC = $(CROSS)gcc
 LD = $(CROSS)ld
 
+CORE = typhoon
+SYSTEM = clipper
+
+ASFLAGS = -Wa,-m21264 -Wa,--noexecstack
 CFLAGS = -Os -g -Wall -fvisibility=hidden -fno-strict-aliasing \
   -msmall-text -msmall-data -mno-fp-regs -mbuild-constants
+CPPFLAGS = -DSYSTEM_H='"sys-$(SYSTEM).h"'
 
-CFLAGS += -mcpu=pca56
+CFLAGS += -mcpu=ev67
 
-OBJS = pal.o init.o uart.o memset.o printf.o
+OBJS = pal.o sys-$(SYSTEM).o init.o uart.o memset.o printf.o
 
-all: palcode-sx164
+all: palcode-$(SYSTEM)
 
-palcode-sx164: palcode.ld $(OBJS)
+palcode-$(SYSTEM): palcode.ld $(OBJS)
 	$(LD) -relax -o $@ -T palcode.ld -Map $@.map $(OBJS)
 
 clean:
 	rm -f *.o
-	rm -f palcode palcode.map
+	rm -f palcode-*
 
-pal.o: pal.S osf.h uart.h
-	$(CC) $(CFLAGS) -c -Wa,-m21264 -Wa,--noexecstack -o $@ $<
-
-init.o: init.c hwrpb.h osf.h uart.h
+pal.o: pal.S osf.h sys-$(SYSTEM).h core-$(CORE).h
+init.o: init.c hwrpb.h osf.h uart.h sys-$(SYSTEM).h core-$(CORE).h
 printf.o: printf.c uart.h
-uart.o: uart.c uart.h io.h cia.h
+uart.o: uart.c uart.h protos.h

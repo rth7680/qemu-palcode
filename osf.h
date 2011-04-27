@@ -59,6 +59,7 @@
 #define IPL_K_DEV0      0x3
 #define IPL_K_DEV1      0x4
 #define IPL_K_CLK       0x5
+#define IPL_K_IP        0x6
 #define IPL_K_RT        0x6
 #define IPL_K_PERF      0x6
 #define IPL_K_PFAIL     0x6

@@ -3,6 +3,7 @@
 #include "hwrpb.h"
 #include "osf.h"
 #include "uart.h"
+#include SYSTEM_H
 
 #define PAGE_SHIFT	13
 #define PAGE_SIZE	(1ul << PAGE_SHIFT)
@@ -141,6 +142,7 @@ static void
 init_hwrpb (unsigned long memsize)
 {
   unsigned long pal_pages;
+  unsigned long cpu_type;
   
   hwrpb.hwrpb.phys_addr = PA(&hwrpb);
 
@@ -167,14 +169,15 @@ init_hwrpb (unsigned long memsize)
   ((int *)hwrpb.hwrpb.ssn)[2] = ( 'U' << 0);
 
   /* For now, hard-code emulation of sx164.  */
-  hwrpb.hwrpb.cpuid = PCA56_CPU;
+  cpu_type = init_cpuid();
+  hwrpb.hwrpb.cpuid = cpu_type;
   hwrpb.hwrpb.pagesize = PAGE_SIZE;
   hwrpb.hwrpb.pa_bits = 40;
   hwrpb.hwrpb.max_asn = 127;
-  hwrpb.hwrpb.sys_type = ST_DEC_EB164;
-  hwrpb.hwrpb.sys_variation = 15 << 10;
-  hwrpb.hwrpb.sys_revision = 0;
-  hwrpb.processor.type = PCA56_CPU;
+  hwrpb.hwrpb.sys_type = SYS_TYPE;
+  hwrpb.hwrpb.sys_variation = SYS_VARIATION;
+  hwrpb.hwrpb.sys_revision = SYS_REVISION;
+  hwrpb.processor.type = cpu_type;
 
   hwrpb.hwrpb.intr_freq = HZ * 4096;
   hwrpb.hwrpb.cycle_freq = 250000000;	/* QEMU architects 250MHz.  */
@@ -220,7 +223,7 @@ do_hello(void)
 }
 
 void
-do_start(unsigned long memsize, void (*kernel_entry)(void))
+do_start(unsigned long memsize, void (*kernel_entry)(void), long cpus)
 {
   last_alloc = _end;
 
@@ -241,4 +244,17 @@ do_start(unsigned long memsize, void (*kernel_entry)(void))
     asm("call_pal 0x0a" : : "r"(variant), "r"(pc), "r"(pa_pcb), "r"(vptptr));
   }
   __builtin_unreachable ();
+}
+
+void
+do_start_wait(void)
+{
+  while (1)
+    {
+      // WtInt with interrupts off.  Rely on the fact that QEMU will
+      // un-halt the CPU when an interrupt arrives.
+      asm("lda $16,-1\n\tcall_pal 0x3e" : : : "$0", "$16");
+
+      // FIXME do something with the IPI.
+    }
 }

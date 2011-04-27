@@ -1,62 +1,7 @@
-#ifndef __ALPHA_CIA__H__
-#define __ALPHA_CIA__H__
+#ifndef CIA_H
+#define CIA_H
 
 #define IDENT_ADDR 0xfffffc0000000000UL
-
-/*
- * CIA is the internal name for the 21171 chipset which provides
- * memory controller and PCI access for the 21164 chip based systems.
- * Also supported here is the 21172 (CIA-2) and 21174 (PYXIS).
- *
- * The lineage is a bit confused, since the 21174 was reportedly started
- * from the 21171 Pass 1 mask, and so is missing bug fixes that appear
- * in 21171 Pass 2 and 21172, but it also contains additional features.
- *
- * This file is based on:
- *
- * DECchip 21171 Core Logic Chipset
- * Technical Reference Manual
- *
- * EC-QE18B-TE
- *
- * david.rusling@reo.mts.dec.com Initial Version.
- *
- */
-
-/*
- * CIA ADDRESS BIT DEFINITIONS
- *
- *  3333 3333 3322 2222 2222 1111 1111 11
- *  9876 5432 1098 7654 3210 9876 5432 1098 7654 3210
- *  ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
- *  1                                             000
- *  ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
- *  |                                             |\|
- *  |                               Byte Enable --+ |
- *  |                             Transfer Length --+
- *  +-- IO space, not cached
- *
- *   Byte      Transfer
- *   Enable    Length    Transfer  Byte    Address
- *   adr<6:5>  adr<4:3>  Length    Enable  Adder
- *   ---------------------------------------------
- *      00        00      Byte      1110   0x000
- *      01        00      Byte      1101   0x020
- *      10        00      Byte      1011   0x040
- *      11        00      Byte      0111   0x060
- *
- *      00        01      Word      1100   0x008
- *      01        01      Word      1001   0x028 <= Not supported in this code.
- *      10        01      Word      0011   0x048
- *
- *      00        10      Tribyte   1000   0x010
- *      01        10      Tribyte   0001   0x030
- *
- *      10        11      Longword  0000   0x058
- *
- *      Note that byte enables are asserted low.
- *
- */
 
 #define CIA_MEM_R1_MASK 0x1fffffff  /* SPARSE Mem region 1 mask is 29 bits */
 #define CIA_MEM_R2_MASK 0x07ffffff  /* SPARSE Mem region 2 mask is 27 bits */
@@ -265,4 +210,42 @@
 /* Offset between ram physical addresses and pci64 DAC bus addresses.  */
 #define PYXIS_DAC_OFFSET		(1UL << 40)
 
-#endif /* __ALPHA_CIA__H__ */
+#ifdef __ASSEMBLER__
+
+/* Unfortunately, GAS doesn't attempt any interesting constructions of
+   64-bit constants, dropping them all into the .lit8 section.  It is
+   better for us to build these by hand.  */
+.macro	LOAD_PHYS_PYXIS_INT ret
+	lda	\ret, 0x87a
+	sll	\ret, 28, \ret
+.endm
+
+.macro	LOAD_KSEG_PCI_IO ret
+	lda	\ret, -887
+	sll	\ret, 32, \ret
+.endm
+
+.macro	SYS_WHAMI	ret
+	mov	0, \ret
+.endm
+
+.macro	SYS_ACK_SMP	t0, t1, t2
+	br	MchkBugCheck
+.endm
+
+#else
+
+static inline unsigned long inb(unsigned long port)
+{
+  return *(volatile unsigned char *)(CIA_BW_IO + port);
+}
+
+static inline void outb(unsigned long port, unsigned char val)
+{
+  *(volatile unsigned char *)(CIA_BW_IO + port) = val;
+}
+
+
+#endif
+
+#endif /* CIA_H */

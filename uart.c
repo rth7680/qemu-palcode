@@ -30,7 +30,7 @@ your own risk.
  * Modified for QEMU PALcode by rth@twiddle.net.
  */
 
-#include "io.h"
+#include "protos.h"
 #include "uart.h"
 
 #ifndef SERIAL_SPEED

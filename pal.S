@@ -2,129 +2,9 @@
 	.set		nomacro
 	.text
 
+#include "pal.h"
 #include "osf.h"
-#include "uart.h"
-
-/* General Purpose Registers.  */
-#define	v0	$0
-#define t0	$1
-#define t1	$2
-#define t2	$3
-#define t3	$4
-#define t4	$5
-#define t5	$6
-#define a0	$16
-#define a1	$17
-#define a2	$18
-#define a3	$19
-#define a4	$20
-#define a5	$21
-#define t8	$22
-#define t9	$23
-#define t10	$24
-
-/* PALcode Shadow Registers.  These registers are swapped out when
-   QEMU is in PALmode.  Unlike real hardware, there is no enable bit.
-   However, also unlike real hardware, the originals can be accessed
-   via MTPR/MFPR.  */
-#define p0	$8
-#define p1	$9
-#define p2	$10
-#define p3	$11
-#define p4	$12
-#define p5	$13
-#define p6	$14		// Used to save exc_addr for machine check
-#define p7	$25
-
-/* QEMU Processor Registers.  */
-#define	qemu_ps		0
-#define qemu_fen	1
-#define qemu_pcc_ofs	2
-#define qemu_trap_arg0	3
-#define qemu_trap_arg1	4
-#define qemu_trap_arg2	5
-#define qemu_exc_addr	6
-#define qemu_palbr	7
-#define qemu_ptbr	8
-#define qemu_vptptr	9
-#define qemu_unique	10
-#define qemu_sysval	11
-#define qemu_usp	12
-
-#define qemu_shadow0	32
-#define qemu_shadow1	33
-#define qemu_shadow2	34
-#define qemu_shadow3	35
-#define qemu_shadow4	36
-#define qemu_shadow5	37
-#define qemu_shadow6	38
-#define qemu_shadow7	39
-
-/* PALcode Processor Register Private Storage.  */
-#define pt0		40
-#define pt1		41
-#define pt2		42
-#define pt3		43
-#define pt4		44
-#define pt5		45
-#define pt6		46
-#define pt7		47
-#define pt8		48
-#define pt9		49
-#define pt10		50
-#define pt11		51
-#define pt12		52
-#define pt13		53
-#define pt14		54
-#define pt15		55
-#define pt16		56
-#define pt17		57
-#define pt18		58
-#define pt19		59
-#define pt20		60
-#define pt21		61
-#define pt22		62
-#define pt23		63
-
-/* QEMU function calls, via mtpr.  */
-#define qemu_tbia	255
-#define qemu_tbis	254
-#define qemu_wait	253
-
-/* PALcode uses of the private storage slots.  */
-#define ptEntUna	pt0
-#define ptEntIF		pt1
-#define ptEntSys	pt2
-#define ptEntInt	pt3
-#define ptEntArith	pt4
-#define ptEntMM		pt5
-#define ptMces		pt6
-#define ptKsp		pt7
-#define ptKgp		pt8
-#define ptPcbb		pt9
-#define ptPgp		pt10
-#define ptMisc		pt11
-#define ptMchk0		pt12
-#define ptMchk1		pt13
-#define ptMchk2		pt14
-#define ptMchk3		pt15
-#define ptMchk4		pt16
-#define ptMchk5		pt17
-
-/*
- * Shortcuts for various PALmode instructions.
- */
-#define mtpr	hw_mtpr
-#define mfpr	hw_mfpr
-#define stq_p	hw_stq/p
-#define stl_p	hw_stl/p
-#define ldl_p	hw_ldl/p
-#define ldq_p	hw_ldq/p
-
-/* QEMU recognizes the EV4/EV5 HW_REI instruction as a special case of
-   the EV6 HW_RET instruction.  This pulls the destination address from
-   the EXC_ADDR processor register.  */
-#define hw_rei	hw_ret ($31)
+#include SYSTEM_H
 
 /*
  * Create a standard kernel entry stack frame.
@@ -158,11 +38,6 @@
 	stq	a2, FRM_Q_A2($sp)
 .endm
 
-.macro	ENDFN	function
-	.type	\function, @function
-	.size	\function, . - \function
-.endm
-
 /*
  * Allocate a 1 page stack for use by the console.
  */
@@ -183,26 +58,30 @@
         .org	0x0000
 	.globl	__start
 __start:
-	// Initialize GP and stack.
+	// Initialize GP.
 	br	$gp, .+4
 	ldah	$gp, 0($gp)			!gpdisp!1
 	lda	$gp, 0($gp)			!gpdisp!1
 	mtpr	$gp, ptPgp
 
-	lda	$sp, stack+STACK_SIZE($gp)	!gprel
-
 	// Disable interrupts; kernel mode
 	lda	t0, IPL_K_HIGH
 	mtpr	t0, qemu_ps
 
-	// Make sure kernel entry points are invalid.
-	lda	t0, -1
-	mtpr	t0, ptEntUna
-	mtpr	t0, ptEntIF
-	mtpr	t0, ptEntSys
-	mtpr	t0, ptEntInt
-	mtpr	t0, ptEntArith
-	mtpr	t0, ptEntMM
+	// Initialize Stack.
+	SYS_WHAMI a0
+	lda	t0, STACK_SIZE
+	mull	t0, a0, t0
+	ldah	t1, stack($gp)			!gprelhigh
+	lda	t1, stack(t1)			!gprellow
+	addq	t0, t1, $sp
+
+	// Do any necessary system setup required for PALmode,
+	// e.g. setting up ptSys[01].
+	bsr	$26, Sys_Setup
+
+	// Non-boot CPUs can go wait now.
+	bne	a0, 1f
 
 	// Load boot arguments
 	mfpr	a0, qemu_trap_arg0
@@ -212,6 +91,10 @@ __start:
 	// Continue in do_start, outside PALmode.
 	ldah	$27, do_start($gp)		!gprelhigh
 	lda	$27, do_start($27)		!gprellow
+	hw_ret	($27)
+
+1:	ldah	$27, do_start_wait($gp)		!gprelhigh
+	lda	$27, do_start_wait($27)		!gprellow
 	hw_ret	($27)
 ENDFN	__start
 
@@ -242,6 +125,40 @@ Pal_Mchk:
 ENDFN	Pal_Mchk
 
 /*
+ * Interprocessor Interrupt
+ *
+ * INPUT PARAMETERS:
+ *
+ *	trap_arg0 = 
+ *	trap_arg1 =
+ *	trap_arg2 =
+ *
+ * The interprocessor interrupt is special, in that PALcode is supposed
+ * to clear the interupt and not wait for the OS to do it.
+ */
+	.org	0x0100
+Pal_Smp_Interrupt:
+	mfpr	p6, qemu_exc_addr
+
+	SYS_ACK_SMP p0, p1, p2
+
+	mfpr	p0, qemu_ps
+
+	STACK_FRAME p0, p6, p2, 0
+
+	mov	IPL_K_IP, p0		// Raise IPL
+	mtpr	p0, qemu_ps
+
+	mfpr	p6, ptEntInt
+	mfpr	$gp, ptKgp
+	lda	a0, INT_K_IP
+	lda	a1, 0
+	lda	a2, 0
+
+	hw_ret	(p6)
+ENDFN	Pal_Smp_Interrupt
+
+/*
  * Clock Interrupt
  *
  * INPUT PARAMETERS:
@@ -253,23 +170,11 @@ ENDFN	Pal_Mchk
  * The clock interrupt is special, in that PALcode is supposed
  * to clear the interupt and not wait for the OS to do it.
  */
-	.org	0x0100
+	.org	0x0180
 Pal_Clk_Interrupt:
 	mfpr	p6, qemu_exc_addr
 
-	// Load CIA_BW_IO.  Note that this is the KSEG address,
-	// since there is no hw_stb with physical address access.
-	lda	p0, -887
-	sll	p0, 32, p0
-
-	mov	0xc, p1			// Set RTCADD (0x70) to index register 0xC
-	stb	p1, 0x70(p0)
-	ldbu	p1, 0x71(p0)		// Read RTCDAT to clear interrupt.
-
-#if 0
-	and	p1, 0x40, p1		// Check for real interrupt.
-	bne	p1, 9f			// If not, exit now, no stack frame.
-#endif
+	SYS_ACK_CLK p0, p1, p2
 
 	mfpr	p0, qemu_ps
 
@@ -296,7 +201,7 @@ ENDFN	Pal_Clk_Interrupt
  *	trap_arg1 =
  *	trap_arg2 =
  */ 
-	.org	0x0180
+	.org	0x0200
 Pal_Dev_Interrupt:
 	mfpr	p6, qemu_exc_addr
 	mfpr	p0, qemu_ps
@@ -308,9 +213,12 @@ Pal_Dev_Interrupt:
 
 	mfpr	p7, ptEntInt
 	mfpr	$gp, ptKgp
+
 	lda	a0, INT_K_DEV
-	lda	a1, 0x800
 	lda	a2, 0
+
+	SYS_DEV_VECTOR a1
+
 	hw_ret	(p7)
 ENDFN	Pal_Dev_Interrupt
 
@@ -323,7 +231,7 @@ ENDFN	Pal_Dev_Interrupt
  *	trap_arg1 = fault type (TNV, ACV, FOR, FOW, FOE)
  *	trap_arg2 = access type (exec=-1, read=0, write=1)
  */ 
-	.org	0x0200
+	.org	0x0280
 Pal_MMFault:
 	mfpr	p0, qemu_ps
 	mfpr	p6, qemu_exc_addr
@@ -348,7 +256,7 @@ ENDFN	Pal_MMFault
  *	trap_arg1 = opcode of faulting insn
  *	trap_arg2 = src/dst register number
  */ 
-	.org	0x0280
+	.org	0x0300
 Pal_Unalign:
 	mfpr	p0, qemu_ps
 	mfpr	p6, qemu_exc_addr
@@ -380,7 +288,7 @@ ENDFN	Pal_Unalign
  *	r17 (a1) = UNPREDICTABLE
  *	r18 (a2) = UNPREDICTABLE
  */ 
-	.org	0x0300
+	.org	0x0380
 Pal_OpcDec:
 	mfpr	p0, qemu_ps
 	mfpr	p6, qemu_exc_addr
@@ -404,7 +312,7 @@ ENDFN	Pal_OpcDec
  *	trap_arg1 = register modification mask
  *	trap_arg2 = UNDEFINED
  */
-	.org	0x0380
+	.org	0x0400
 Pal_Arith:
 	mfpr	p0, qemu_ps
 	mfpr	p6, qemu_exc_addr
@@ -434,7 +342,7 @@ ENDFN	Pal_Arith
  *	r17 (a1) = UNPREDICTABLE
  *	r18 (a2) = UNPREDICTABLE
  */ 
-	.org	0x0400
+	.org	0x0480
 Pal_Fen:
 	mfpr	p0, qemu_ps
 	mfpr	p6, qemu_exc_addr
@@ -466,14 +374,9 @@ ENDFN	Pal_Fen
 	ORG_CALL_PAL_PRIV(0x00)
 CallPal_Halt:
 	bsr	p7, UpdatePCB		// Save kernel data
-	lda	v0, HLT_K_SW_HALT
+	lda	v0, HLT_K_SW_HALT	// FIXME store this somewhere.
 
-	ldah	p0, 1			// Store 0xdead into CIA RESET reg
-	lda	p0, -(0x10000 - 0xdead)(p0)
-	lda	p1, 0x878
-	sll	p1, 28, p1
-	lda	p1, 0x900(p1)
-	stl_p	p0, 0(p1)
+	mtpr	$31, qemu_halt
 
 	br	Sys_EnterConsole
 ENDFN	CallPal_Halt
@@ -535,69 +438,40 @@ ENDFN	CallPal_OpcDec08
  * 
  *	r16 (a0)          = Option selector
  *	r17..r21 (a1..a5) = Implementation specific entry parameters
- * 
+ *
  * SIDE EFFECTS:
  *
  *	Registers a0..a5, and v0 are UNPREDICTABLE upon return.
  */ 
 	ORG_CALL_PAL_PRIV(0x09)
 CallPal_Cserve:
-	cmpeq	a0, 15, v0
-	bne	v0, Cserve_putc
+	// ??? For SRM compatibility, use 52/53 for these.  Anyone know what
+	// other "standard" SRM Cserve entry points are?  Certainly we don't
+	// want to be compatible with MILO, which puts the selector at A2.
 	cmpeq	a0, 52, v0
-	bne	v0, Cserve_ena
+	bne	v0, Cserve_Ena
 	cmpeq	a0, 53, v0
-	bne	v0, Cserve_dis
+	bne	v0, Cserve_Dis
+
+	// All the rest of the Cserve entry points are compressed from 1.
+	cmpeq	a0, 1, v0
+	bne	v0, Cserve_Ldqp
+	cmpeq	a0, 2, v0
+	bne	v0, Cserve_Stqp
+
 	hw_rei
 ENDFN	CallPal_Cserve
 
 	.text	1
-Cserve_putc:
-	// Load CIA_BW_IO.  Note that this is the KSEG address,
-	// since there is no hw_stb with physical address access.
-	lda	p0, -887
-	sll	p0, 32, p0
-
-	ldbu	v0, com1Lsr(p0)		// Get Transmit Holding Register Empty
-	and	v0, 0x20, v0
-	beq	v0, 1f
-
-	stb	a1, com1Thr(p0)		// Output the byte
-	mov	1, v0
-1:	hw_rei
-ENDFN	Cserve_putc
-
-Cserve_ena:
-	lda	p0, 0x87a		// Load PYXIS INT REG base.
-	sll	p0, 28, p0
-
-	lda	p1, 1			// Shift the interrupt line in place.
-	sll	p1, a1, p1
-
-	ldq_p	p2, 0x40(p0)		// Load PYXIS_INT_MASK
-	sll	p2, a1, v0		// Return the current setting
-	and	v0, 1, v0
-	andnot	p2, p1, p2		// Clear the bit
-	stq_p	p2, 0x40(p0)		// Store PYXIS_INT_MASK
-
+Cserve_Ldqp:
+	ldq_p	v0, 0(a1)
 	hw_rei
-ENDFN	Cserve_ena
+ENDFN	Cserve_Ldqp
 
-Cserve_dis:
-	lda	p0, 0x87a		// Load PYXIS INT REG base.
-	sll	p0, 28, p0
-
-	lda	p1, 1			// Shift the interrupt line in place.
-	sll	p1, a1, p1
-
-	ldq_p	p2, 0x40(p0)		// Load PYXIS_INT_MASK
-	sll	p2, a1, v0		// Return the current setting
-	and	v0, 1, v0
-	or	p2, p1, p2		// Set the bit
-	stq_p	p2, 0x40(p0)		// Store PYXIS_INT_MASK
-
+Cserve_Stqp:
+	stq_p	a2, 0(a1)
 	hw_rei
-ENDFN	Cserve_dis
+ENDFN	Cserve_Stqp
 	.previous
 
 /*
@@ -717,7 +591,11 @@ ENDFN	CallPal_OpcDec0C
  */ 
         ORG_CALL_PAL_PRIV(0x0D)
 CallPal_WrIpir:
-	// We do not currently support more cpus
+	// Save a copy of the return address in case of machine check.
+	mfpr	p6, qemu_exc_addr
+
+	SYS_WRIPIR	a0, p0, p1, p2
+
 	hw_rei
 ENDFN	CallPal_WrIpir
 
@@ -1266,8 +1144,7 @@ ENDFN	CallPal_OpcDec3B
  */ 
         ORG_CALL_PAL_PRIV(0x3C)
 CallPal_Whami:
-	// We do not currently support more cpus
-	mov	0, v0
+	SYS_WHAMI v0
 	hw_rei
 ENDFN	CallPal_Whami
 
@@ -2177,6 +2054,7 @@ laf_q_pci_err2:		.quad	0
 $laf_size		= . - laf_base
 	.size	laf_base, . - laf_base
 
+	.section .bss
 	.align 3
 	.globl	stack
 	.type	stack,@object

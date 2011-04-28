@@ -445,33 +445,61 @@ ENDFN	CallPal_OpcDec08
  */ 
 	ORG_CALL_PAL_PRIV(0x09)
 CallPal_Cserve:
-	// ??? For SRM compatibility, use 52/53 for these.  Anyone know what
-	// other "standard" SRM Cserve entry points are?  Certainly we don't
-	// want to be compatible with MILO, which puts the selector at A2.
-	cmpeq	a0, 52, v0
-	bne	v0, Cserve_Ena
-	cmpeq	a0, 53, v0
-	bne	v0, Cserve_Dis
-
-	// All the rest of the Cserve entry points are compressed from 1.
-	cmpeq	a0, 1, v0
-	bne	v0, Cserve_Ldqp
-	cmpeq	a0, 2, v0
-	bne	v0, Cserve_Stqp
-
-	hw_rei
+	// Most of the entries are densely clustered around 0.
+	mov	0, v0
+	cmpule	a0, 6, p0
+	cmovne	p0, a0, v0
+	br	p0, 1f
+1:	lda	p0, Cserve_Table-1b(p0)
+	s8addq	v0, p0, p0
+	jmp	$31, (p0), 0
 ENDFN	CallPal_Cserve
 
 	.text	1
+	.align	3
+/* Note that the entries in the following table are all 2 insns.
+   The first entry is unused, and is also where all out-of-range
+   commands are vectored.  */
+Cserve_Table:
+	br	CallPal_Cserve_Cont
+	nop
 Cserve_Ldqp:
 	ldq_p	v0, 0(a1)
 	hw_rei
 ENDFN	Cserve_Ldqp
-
 Cserve_Stqp:
 	stq_p	a2, 0(a1)
 	hw_rei
 ENDFN	Cserve_Stqp
+Cserve_Get_Wall_Time:
+	mfpr	v0, qemu_walltime
+	hw_rei
+ENDFN	Cserve_Get_Wall_Time
+Cserve_Get_Alarm:
+	mfpr	v0, qemu_alarm
+	hw_rei
+ENDFN	Cserve_Get_Alarm
+Cserve_Set_Alarm_Rel:
+	// Cheating here: create the absolute time and fall thru.
+	mfpr	p0, qemu_walltime
+	addq	p0, a1, a1
+ENDFN	Cserve_Set_Alarm_Rel
+Cserve_Set_Alarm_Abs:
+	mtpr	a1, qemu_alarm
+	hw_rei
+ENDFN	Cserve_Set_Alarm_Abs
+
+CallPal_Cserve_Cont:
+	// ??? For SRM compatibility and their use within Linux, use 52/53
+	// for these.  Anyone know what other "standard" SRM Cserve entry
+	// points are?  Certainly we don't want to be compatible with MILO,
+	// which puts the selector at A2.
+	cmpeq	a0, 52, v0
+	bne	v0, Cserve_Ena
+	cmpeq	a0, 53, v0
+	bne	v0, Cserve_Dis
+	hw_rei
+ENDFN	CallPal_Cserve_Cont
 	.previous
 
 /*

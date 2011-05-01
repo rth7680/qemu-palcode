@@ -1,3 +1,12 @@
+/* Layout and contents of the HardWare Resource Parameter Block (HWRPB).
+
+   This file is copied intact from the Linux kernel.  As such, it is
+   covered by the GNU General Public License, v2.0.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; see the file COPYING.  If not see
+   <http://www.gnu.org/licenses/>.  */
+
 #ifndef __ALPHA_HWRPB_H
 #define __ALPHA_HWRPB_H
 

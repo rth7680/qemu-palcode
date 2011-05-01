@@ -1,3 +1,23 @@
+/* QEMU Emulation PALcode.
+
+   Copyright (C) 2011 Richard Henderson
+
+   This file is part of QEMU PALcode.
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 2 of the License or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the text
+   of the GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; see the file COPYING.  If not see
+   <http://www.gnu.org/licenses/>.  */
+
 	.set		noat
 	.set		nomacro
 	.text
@@ -9,14 +29,6 @@
 /*
  * Create a standard kernel entry stack frame.
  */
-
-#define FRM_Q_PS        0
-#define FRM_Q_PC        8
-#define FRM_Q_GP        16
-#define FRM_Q_A0        24
-#define FRM_Q_A1        32
-#define FRM_Q_A2        40
-#define FRM_K_SIZE      48
 
 .macro	STACK_FRAME save_ps, save_pc, temp, do_ps
 	// Test if we're currently in user mode
@@ -109,19 +121,7 @@ ENDFN	__start
  */
 	.org	0x0080
 Pal_Mchk:
-	mfpr	p5, ptMces		// Get the error summary
-	or	p5, MCES_M_MIP, p4	// Set machine-check-in-progress
-	zap	p4, 0x3c, p4		// Clear space for MCHK and SCB
-	mtpr	p4, ptMces
-
-	ldah	p0, SCB_Q_PROCMCHK
-	or	p4, p0, p4		// Merge in the SCB vector
-	lda	p0, MCHK_K_PROC_HERR
-	sll	p0, PT16_V_MCHK, p0
-	or	p4, p0, p4		// Merge in the MCHK code
-	mtpr	p4, ptMisc
-
-	br	MchkCommon_SaveRegs
+	halt
 ENDFN	Pal_Mchk
 
 /*
@@ -1788,31 +1788,8 @@ ENDFN	CallPal_OpcDec
  */
 
 MchkBugCheck:
-        lda     p7, MCHK_K_BUGCHECK
-        br      1f
 MchkOSBugCheck:
-        lda     p7, MCHK_K_OS_BUGCHECK
-1:      sll     p7, PT16_V_MCHK, p7	// Move error code into upper longword
-
-	mfpr	p4, ptMces		// Get and isolate MCES bits
-	zap	p4, 0x3c, p4
-	or	p4, p7, p4		// Combine MCES and error code
-
-	ldah	p7, SCB_Q_PROCMCHK	// Combine SCB and MCHK bits
-	or	p4, p7, p7
-	or	p7, MCES_M_MIP, p7	// Set machine-check-in-progress
-	mtpr	p7, ptMces
-
-MchkCommon_SaveRegs:
-	mtpr	v0, ptMchk0		// Save temporaries
-	mtpr	t0, ptMchk1
-	mtpr	t3, ptMchk2
-	mtpr	t4, ptMchk3
-	mtpr	t5, ptMchk4
-	mtpr	p6, ptMchk5		// Save the exception address
-
-	blbs	p4, MchkDouble
-	blbs	p6, MchkFromPal
+	halt
 ENDFN	MchkBugCheck
 
 /*
@@ -1835,11 +1812,7 @@ ENDFN	MchkBugCheck
  */
 
 MchkCommon:
-	mov	0, t4			// Assume non-retryable.
-
-	mfpr	t5, ptMisc		// Load MCHK code
-	extwl	t5, 4, t5
-	andnot	t5, 1, t5
+	halt
 ENDFN	MchkCommon
 
 /*
@@ -1868,110 +1841,7 @@ ENDFN	MchkCommon
 .endm
 
 MchkLogOut:
-	mfpr	p6, ptPgp		// Get address of logout frame
-	lda	p6, laf_base(p6)	!gprel
-
-	lda	t3, $laf_size
-	stl_p	t3, laf_l_size - laf_base(p6)
-	stl_p	t4, laf_l_flag - laf_base(p6)
-
-	lda	t3, laf_cpu_base - laf_base
-	stl_p	t3, laf_l_cpu - laf_base(p6)
-	lda	t3, laf_sys_base - laf_base
-	stl_p	t3, laf_l_sys - laf_base(p6)
-
-	STORE_IPR  qemu_shadow0, laf_q_shadow - laf_base + 0x00, p6
-	STORE_IPR  qemu_shadow1, laf_q_shadow - laf_base + 0x08, p6
-	STORE_IPR  qemu_shadow2, laf_q_shadow - laf_base + 0x10, p6
-	STORE_IPR  qemu_shadow3, laf_q_shadow - laf_base + 0x18, p6
-	STORE_IPR  qemu_shadow4, laf_q_shadow - laf_base + 0x20, p6
-	STORE_IPR  qemu_shadow5, laf_q_shadow - laf_base + 0x28, p6
-	STORE_IPR  qemu_shadow6, laf_q_shadow - laf_base + 0x30, p6
-	STORE_IPR  qemu_shadow7, laf_q_shadow - laf_base + 0x38, p6
-
-	STORE_IPR  pt0, laf_q_pt - laf_base + 0x00, p6
-	STORE_IPR  pt1, laf_q_pt - laf_base + 0x08, p6
-	STORE_IPR  pt2, laf_q_pt - laf_base + 0x10, p6
-	STORE_IPR  pt3, laf_q_pt - laf_base + 0x18, p6
-	STORE_IPR  pt4, laf_q_pt - laf_base + 0x20, p6
-	STORE_IPR  pt5, laf_q_pt - laf_base + 0x28, p6
-	STORE_IPR  pt6, laf_q_pt - laf_base + 0x30, p6
-	STORE_IPR  pt7, laf_q_pt - laf_base + 0x38, p6
-	STORE_IPR  pt8, laf_q_pt - laf_base + 0x40, p6
-	STORE_IPR  pt9, laf_q_pt - laf_base + 0x48, p6
-	STORE_IPR pt10, laf_q_pt - laf_base + 0x50, p6
-	STORE_IPR pt11, laf_q_pt - laf_base + 0x58, p6
-	STORE_IPR pt12, laf_q_pt - laf_base + 0x60, p6
-	STORE_IPR pt13, laf_q_pt - laf_base + 0x68, p6
-	STORE_IPR pt14, laf_q_pt - laf_base + 0x70, p6
-	STORE_IPR pt15, laf_q_pt - laf_base + 0x78, p6
-	STORE_IPR pt16, laf_q_pt - laf_base + 0x80, p6
-	STORE_IPR pt17, laf_q_pt - laf_base + 0x88, p6
-	STORE_IPR pt18, laf_q_pt - laf_base + 0x90, p6
-	STORE_IPR pt19, laf_q_pt - laf_base + 0x98, p6
-	STORE_IPR pt20, laf_q_pt - laf_base + 0xa0, p6
-	STORE_IPR pt21, laf_q_pt - laf_base + 0xa8, p6
-	STORE_IPR pt22, laf_q_pt - laf_base + 0xb0, p6
-	STORE_IPR pt23, laf_q_pt - laf_base + 0xb8, p6
-
-	mfpr	t0, ptMchk1
-	mfpr	t3, ptMchk2
-	mfpr	t4, ptMchk3
-	mfpr	t5, ptMchk4
-	mfpr	p7, ptMchk5
-	stq_p	p7, laf_q_exc_addr - laf_base(p6)
-
-	stq_p	$31, laf_q_exc_sum - laf_base(p6)
-	stq_p	$31, laf_q_exc_mask - laf_base(p6)
-
-	STORE_IPR qemu_palbr, laf_q_pal_base - laf_base, p6
-
-	stq_p	$31, laf_q_isr - laf_base(p6)
-	stq_p	$31, laf_q_icsr - laf_base(p6)
-	stq_p	$31, laf_q_icperr - laf_base(p6)
-	stq_p	$31, laf_q_dcperr - laf_base(p6)
-	stq_p	$31, laf_q_va - laf_base(p6)
-	stq_p	$31, laf_q_mm_stat - laf_base(p6)
-	stq_p	$31, laf_q_sc_addr - laf_base(p6)
-	stq_p	$31, laf_q_sc_stat - laf_base(p6)
-	stq_p	$31, laf_q_bc_addr - laf_base(p6)
-	stq_p	$31, laf_q_ei_addr - laf_base(p6)
-	stq_p	$31, laf_q_fill_syndrome - laf_base(p6)
-	stq_p	$31, laf_q_ei_stat - laf_base(p6)
-	stq_p	$31, laf_q_ld_lock - laf_base(p6)
-
-	// bsr v0, Sys_MchkLogOut
-
-	mfpr	v0, ptMchk0
-
-	// Build the stack frame on the kernel stack and post the interrupt
-	mfpr	p7, ptMisc
-	extwl	p7, 4, p7
-	mov	p6, p4			// Stash pointer to logout
-	lda	a1, SCB_Q_SYSMCHK
-	blbs	p7, 0f			// Check if stack frame already built
-
-	mfpr	p5, qemu_ps
-	mfpr	p6, ptMchk5		// Reload exc_addr for double mchk
-
-	STACK_FRAME	p5, p6, p7, 0
-
-	mov	IPL_K_MCHK, p5		// Raise IPL
-	mtpr	p5, qemu_ps
-
-	mfpr	a1, ptMisc		// Isolate SCB vector
-	extwl	a1, 2, a1
-
-0:	mfpr	p7, ptEntInt
-	lda	a0, INT_K_MCHK
-
-	lda	a2, -1			// Load kseg offset
-	srl	a2, VA_S_SIZE-1, a2
-	sll	a2, VA_S_SIZE-1, a2
-	addq	a2, p4, a2		// Pass ptr to logout area
-
-	mfpr	$gp, ptKgp
-	hw_ret	(p7)
+	halt
 ENDFN	MchkLogOut
 
 MchkDouble:
@@ -2032,55 +1902,8 @@ Sys_EnterConsole:
 	halt
 
 /*
- * Allocate the logout frame.
+ * Allocate the initial bootup stack.
  */
-	.section	.sbss
-	.type	laf_base,@object
-	.align	3
-laf_base:
-laf_l_size:		.long	0
-laf_l_flag:		.long	0
-laf_l_cpu:		.long	0
-laf_l_sys:		.long	0
-laf_q_mchk_code:	.quad	0
-
-$las_size		= . - laf_base
-
-laf_cpu_base:
-laf_q_shadow:		.skip	8*8
-laf_q_pt:		.skip	8*24
-laf_q_exc_addr:		.quad	0
-laf_q_exc_sum:		.quad	0
-laf_q_exc_mask:		.quad	0
-laf_q_pal_base:		.quad	0
-laf_q_isr:		.quad	0
-laf_q_icsr:		.quad	0
-laf_q_icperr:		.quad	0
-laf_q_dcperr:		.quad	0
-laf_q_va:		.quad	0
-laf_q_mm_stat:		.quad	0
-laf_q_sc_addr:		.quad	0
-laf_q_sc_stat:		.quad	0
-laf_q_bc_addr:		.quad	0
-laf_q_ei_addr:		.quad	0
-laf_q_fill_syndrome:	.quad	0
-laf_q_ei_stat:		.quad	0
-laf_q_ld_lock:		.quad	0
-
-laf_sys_base:
-laf_q_cpu_err0:		.quad	0
-laf_q_cpu_err1:		.quad	0
-laf_q_cia_err:		.quad	0
-laf_q_err_mask:		.quad	0
-laf_q_cia_syn:		.quad	0
-laf_q_mem_err0:		.quad	0
-laf_q_mem_err1:		.quad	0
-laf_q_pci_err0:		.quad	0
-laf_q_pci_err1:		.quad	0
-laf_q_pci_err2:		.quad	0
-
-$laf_size		= . - laf_base
-	.size	laf_base, . - laf_base
 
 	.section .bss
 	.align 3

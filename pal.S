@@ -83,7 +83,8 @@ __start:
 	// Initialize Stack.
 	SYS_WHAMI a0
 	lda	t0, STACK_SIZE
-	mull	t0, a0, t0
+	addq	a0, 1, t1
+	mull	t0, t1, t0
 	ldah	t1, stack($gp)			!gprelhigh
 	lda	t1, stack(t1)			!gprellow
 	addq	t0, t1, $sp

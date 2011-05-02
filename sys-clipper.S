@@ -28,8 +28,8 @@
  *
  * INPUT PARAMETERS
  *
- *	r16 (a0) = whami
- *	r26 (ra) = return address
+ *	a0 = whami
+ *	p7 = return address
  */
 	.globl	Sys_Setup
 	.ent	Sys_Setup
@@ -53,6 +53,42 @@ Sys_Setup:
 	mtpr		t2, ptCpuIIC
 	ret
 	.end	Sys_Setup
+
+/*
+ * Sys_Dev_Vector
+ *
+ * Load the SRM interrupt vector for the system.
+ *
+ * INPUT PARAMETERS
+ *
+ *	p7 = return address
+ *
+ * OUTPUT PARAMETERS
+ *
+ *	a1 = interrupt vector
+ */
+
+	.globl	Sys_Dev_Vector
+	.ent	Sys_Dev_Vector
+Sys_Dev_Vector:
+	.frame	$sp, 0, p7, 0
+	mfpr	a1, ptCpuDIR		// Load int mask for this CPU
+	ldq_p	a1, 0(a1)
+	beq	a1, CallPal_Rti		// No interrupts asserted?
+
+	cttz	a1, a1			// Find the first asserted interrupt.
+
+	cmpeq	a1, 55, a0		// Is this an ISA interrupt?
+	addq	a1, 16, a1		// PCI interrupt numbers start at 16
+	beq	a0, 1f
+
+	LOAD_PHYS_PCHIP0_IACK a1	// IACK results in the ISA irq
+	ldl_p	a1, 0(a1)
+
+1:	sll	a1, 4, a1
+	lda	a1, 0x800(a1)
+	ret	$31, (p7), 0
+	.end Sys_Dev_Vector
 
 /*
  * Cserve_Ena

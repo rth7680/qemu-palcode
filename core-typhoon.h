@@ -105,6 +105,7 @@
 #define TYPHOON_PCHIP0_PCI_MEM	0
 #define TYPHOON_PCHIP0_PCI_IO	0x1fc000000
 #define TYPHOON_PCHIP0_PCI_CONF	0x1fe000000
+#define TYPHOON_PCHIP0_PCI_IACK	0x1f8000000
 
 #ifdef __ASSEMBLER__
 
@@ -117,18 +118,28 @@
    64-bit constants, dropping them all into the .lit8 section.  It is
    better for us to build these by hand.  */
 .macro	LOAD_PHYS_CCHIP ret
-	lda	\ret, 0x400d
+	lda	\ret, (PIO_PHYS_ADDR + TYPHOON_CCHIP) >> 29
 	sll	\ret, 29, \ret
 .endm
 
 .macro	LOAD_PHYS_PCHIP0 ret
-	lda	\ret, 0x400c
+	lda	\ret, (PIO_PHYS_ADDR + TYPHOON_PCHIP0) >> 29
 	sll	\ret, 29, \ret
 .endm
 
+.macro	LOAD_PHYS_PCHIP0_IACK ret
+	.set	macro
+	lda	\ret, (PIO_PHYS_ADDR + TYPHOON_PCHIP0_PCI_IACK) >> 24
+	.set	nomacro
+	sll	\ret, 24, \ret
+.endm
+
 .macro	LOAD_KSEG_PCI_IO ret
-	ldah	\ret, -48
-	lda	\ret, 0x1fc0(\ret)
+	.set	macro
+	// Note that GAS shifts are logical.  Force arithmetic shift style
+	// results by negating before and after the shift.
+	lda	\ret, -(-(PIO_KSEG_ADDR + TYPHOON_PCHIP0_PCI_IO) >> 20)
+	.set	nomacro
 	sll	\ret, 20, \ret
 .endm
 
@@ -158,15 +169,6 @@
 	lda		\t2, 1
 	sll		\t2, \t1, \t2
 	stq_p		\t2, TYPHOON_CCHIP_MISC(\t0)
-.endm
-
-/* Load the device interrupt vector.  */
-.macro	SYS_DEV_VECTOR	ret
-	mfpr		\ret, ptCpuDIR
-	ldq_p		\ret, 0(\ret)
-	cttz		\ret, \ret
-	sll		\ret, 4, \ret
-	lda		\ret, 0x800(\ret)
 .endm
 
 /* Interrupt another CPU.  */

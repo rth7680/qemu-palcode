@@ -212,14 +212,12 @@ Pal_Dev_Interrupt:
 	mov	IPL_K_DEV1, p0		// Raise IPL
 	mtpr	p0, qemu_ps
 
+	bsr	p7, Sys_Dev_Vector
+
 	mfpr	p7, ptEntInt
 	mfpr	$gp, ptKgp
-
 	lda	a0, INT_K_DEV
 	lda	a2, 0
-
-	SYS_DEV_VECTOR a1
-
 	hw_ret	(p7)
 ENDFN	Pal_Dev_Interrupt
 
@@ -1251,6 +1249,7 @@ ENDFN	CallPal_WtInt
  *	r18 (a2) <- (sp+40)
  */ 
         ORG_CALL_PAL_PRIV(0x3F)
+	.globl	CallPal_Rti
 CallPal_Rti:
 	mfpr	p6, qemu_exc_addr	// Save exc_addr for machine check
 

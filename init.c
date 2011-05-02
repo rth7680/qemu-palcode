@@ -23,6 +23,7 @@
 #include "hwrpb.h"
 #include "osf.h"
 #include "uart.h"
+#include "protos.h"
 #include SYSTEM_H
 
 #define PAGE_SHIFT	13
@@ -41,6 +42,9 @@ struct hwrpb_combine {
   struct percpu_struct processor;
   struct memdesc_struct md;
   struct memclust_struct mc[2];
+  struct crb_struct crb;
+  struct procdesc_struct proc_dispatch;
+  struct procdesc_struct proc_fixup;
 };
 
 extern char stack[PAGE_SIZE] __attribute__((section(".sbss")));
@@ -53,7 +57,7 @@ static unsigned long page_dir[1024] __attribute__((aligned(PAGE_SIZE)));
 /* The HWRPB must be aligned because it is exported at INIT_HWRPB.  */
 struct hwrpb_combine hwrpb __attribute__((aligned(PAGE_SIZE)));
 
-static void *last_alloc;
+void *last_alloc;
 
 static void *
 alloc (unsigned long size, unsigned long align)
@@ -147,18 +151,10 @@ init_hwrpb (unsigned long memsize)
 
   hwrpb.hwrpb.size = sizeof(struct hwrpb_struct);
 
-  /* The inclusion of MILO here tells the Linux kernel that we do
-     not (yet) support any of the extended console support routines
-     that are in SRM.  */
-  ((int *)hwrpb.hwrpb.ssn)[0] = ( 'M' << 0
-				| 'I' << 8
-				| 'L' << 16
-				| 'O' << 24);
-  ((int *)hwrpb.hwrpb.ssn)[1] = ( ' ' << 0
-				| 'Q' << 8
-				| 'E' << 16
-				| 'M' << 24);
-  ((int *)hwrpb.hwrpb.ssn)[2] = ( 'U' << 0);
+  ((int *)hwrpb.hwrpb.ssn)[0] = ( 'Q' << 0
+				| 'E' << 8
+				| 'M' << 16
+				| 'U' << 24);
 
   amask = ~__builtin_alpha_amask(-1);
   switch (__builtin_alpha_implver())
@@ -208,12 +204,22 @@ init_hwrpb (unsigned long memsize)
   hwrpb.mc[1].start_pfn = pal_pages;
   hwrpb.mc[1].numpages = (memsize >> PAGE_SHIFT) - pal_pages;
 
-  {
-    unsigned long sum = 0, *l;
-    for (l = (unsigned long *) &hwrpb.hwrpb; l < &hwrpb.hwrpb.chksum; ++l)
-      sum += *l;
-    hwrpb.hwrpb.chksum = sum;
-  }
+  hwrpb.hwrpb.crb_offset = offsetof(struct hwrpb_combine, crb);
+  hwrpb.crb.dispatch_va = &hwrpb.proc_dispatch;
+  hwrpb.crb.dispatch_pa = PA(&hwrpb.proc_dispatch);
+  hwrpb.crb.fixup_va = &hwrpb.proc_fixup;
+  hwrpb.crb.fixup_pa = PA(&hwrpb.proc_fixup);
+  hwrpb.crb.map_entries = 1;
+  hwrpb.crb.map_pages = 1;
+  hwrpb.crb.map[0].va = &hwrpb;
+  hwrpb.crb.map[0].pa = PA(&hwrpb);
+  hwrpb.crb.map[0].count = 1;
+
+  /* See crb.c for how we match the VMS calling conventions to Unix.  */
+  hwrpb.proc_dispatch.address = (unsigned long)crb_dispatch;
+  hwrpb.proc_fixup.address = (unsigned long)crb_fixup;
+
+  hwrpb_update_checksum(&hwrpb.hwrpb);
 }
 
 static void

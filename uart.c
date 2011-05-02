@@ -51,7 +51,7 @@ uart_getchar(int offset)
 	return inb(com2Rbr + offset);
 }
 
-static void
+void
 uart_putchar_raw(int offset, char c)
 {
 	while ((inb(com2Lsr + offset) & 0x20) == 0)
@@ -74,7 +74,7 @@ uart_puts(int offset, const char *s)
 		uart_putchar(offset, *s++);
 }
 
-static void
+void
 uart_init_line(int offset, int baud)
 {
 	int i;

@@ -12,7 +12,7 @@ CPPFLAGS = -DSYSTEM_H='"sys-$(SYSTEM).h"'
 
 CFLAGS += -mcpu=ev67
 
-OBJS = pal.o sys-$(SYSTEM).o init.o uart.o memset.o printf.o
+OBJS = pal.o sys-$(SYSTEM).o init.o crb.o uart.o memset.o printf.o
 
 all: palcode-$(SYSTEM)
 
@@ -27,3 +27,4 @@ pal.o: pal.S osf.h sys-$(SYSTEM).h core-$(CORE).h
 init.o: init.c hwrpb.h osf.h uart.h sys-$(SYSTEM).h core-$(CORE).h
 printf.o: printf.c uart.h
 uart.o: uart.c uart.h protos.h
+crb.o: crb.c hwrpb.h protos.h console.h uart.h

@@ -130,16 +130,16 @@ struct procdesc_struct {
 };
 
 struct vf_map_struct {
-	unsigned long va;
+	void *va;
 	unsigned long pa;
 	unsigned long count;
 };
 
 struct crb_struct {
 	struct procdesc_struct * dispatch_va;
-	struct procdesc_struct * dispatch_pa;
+	unsigned long dispatch_pa;
 	struct procdesc_struct * fixup_va;
-	struct procdesc_struct * fixup_pa;
+	unsigned long fixup_pa;
 	/* virtual->physical map */
 	unsigned long map_entries;
 	unsigned long map_pages;
@@ -211,9 +211,6 @@ struct hwrpb_struct {
 	unsigned long dsr_offset;	/* "Dynamic System Recognition Data Block Table" */
 };
 
-#ifdef __KERNEL__
-
-extern struct hwrpb_struct *hwrpb;
 
 static inline void
 hwrpb_update_checksum(struct hwrpb_struct *h)
@@ -223,7 +220,5 @@ hwrpb_update_checksum(struct hwrpb_struct *h)
                 sum += *l;
         h->chksum = sum;
 }
-
-#endif /* __KERNEL__ */
 
 #endif /* __ALPHA_HWRPB_H */

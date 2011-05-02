@@ -59,4 +59,12 @@ static inline unsigned long stq_p(unsigned long port, unsigned long val)
 extern unsigned long inb(unsigned long port);
 extern unsigned long outb(unsigned char val, unsigned long port);
 
+/*
+ * CRB functions
+ */
+
+extern unsigned long crb_dispatch(long select, long a1, long a2,
+                                  long a3, long a4);
+extern unsigned long crb_fixup(unsigned long vptptr, unsigned long hwrpb);
+
 #endif /* PROTOS_H */

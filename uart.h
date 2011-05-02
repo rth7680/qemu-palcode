@@ -57,8 +57,10 @@ your own risk.
 
 extern int uart_charav(int port);
 extern int uart_getchar(int port);
+extern void uart_putchar_raw(int port, char c);
 extern void uart_putchar(int port, char c);
 extern void uart_puts(int port, const char *s);
+extern void uart_init_line(int port, int baud);
 extern void uart_init(void);
 
 #endif /* __ASSEMBLER__ */

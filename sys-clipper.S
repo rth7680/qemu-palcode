@@ -35,8 +35,8 @@
 	.ent	Sys_Setup
 Sys_Setup:
 	.frame	$sp, 0, p7, 0
-	lda		t0, TYPHOON_CCHIP_DIM0
-	lda		t1, TYPHOON_CCHIP_DIM2
+	lda		t0, TYPHOON_CCHIP_DIR0
+	lda		t1, TYPHOON_CCHIP_DIR2
 	lda		t2, TYPHOON_CCHIP_IIC0
 	lda		t3, TYPHOON_CCHIP_IIC2
 	and		a0, 2, t4

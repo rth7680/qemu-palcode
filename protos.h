@@ -21,6 +21,60 @@
 #ifndef PROTOS_H
 #define PROTOS_H 1
 
+/*
+ * Call_Pal functions.
+ */
+
+static inline void wrent(void *cb, unsigned long which)
+{
+  register void *a0 __asm__("$16") = cb;
+  register unsigned long a1 __asm__("$17") = which;
+
+  asm volatile ("call_pal 0x34"
+		: "+r"(a0), "+r"(a1)
+		: : "$1", "$22", "$23", "$24", "$25");
+}
+
+static inline unsigned long swpipl(unsigned long newipl)
+{
+  register unsigned long v0 __asm__("$0");
+  register unsigned long a0 __asm__("$16") = newipl;
+
+  asm volatile ("call_pal 0x35"
+		: "=r"(v0), "+r"(a0)
+		: : "$1", "$22", "$23", "$24", "$25");
+
+  return v0;
+}
+
+static inline unsigned long rdps(void)
+{
+  register unsigned long v0 __asm__("$0");
+
+  asm volatile ("call_pal 0x36"
+		: "=r"(v0) : : "$1", "$22", "$23", "$24", "$25");
+
+  return v0;
+}
+
+static inline void wrkgp(void)
+{
+  asm volatile ("mov $29, $16\n\tcall_pal 0x37"
+		: : : "$16", "$1", "$22", "$23", "$24", "$25");
+}
+
+static inline unsigned long wtint(unsigned long skip)
+{
+  register unsigned long v0 __asm__("$0");
+  register unsigned long a0 __asm__("$16") = skip;
+
+  asm volatile ("call_pal 0x3e"
+		: "=r"(v0), "+r"(a0)
+		: : "$1", "$22", "$23", "$24", "$25");
+
+  return v0;
+}
+
 /* 
  * Cserve functions.
  */
@@ -41,7 +95,7 @@ static inline unsigned long ldq_p(unsigned long addr)
 static inline unsigned long stq_p(unsigned long port, unsigned long val)
 {
   register unsigned long v0 __asm__("$0");
-  register unsigned long a0 __asm__("$16") = 4;
+  register unsigned long a0 __asm__("$16") = 2;
   register unsigned long a1 __asm__("$17") = port;
   register unsigned long a2 __asm__("$18") = val;
 
@@ -50,6 +104,46 @@ static inline unsigned long stq_p(unsigned long port, unsigned long val)
 		: "$19", "$20", "$21");
 
   return v0;
+}
+
+static inline unsigned long get_wall_time(void)
+{
+  register unsigned long v0 __asm__("$0");
+  register unsigned long a0 __asm__("$16") = 3;
+
+  asm("call_pal 9" : "=r"(v0), "+r"(a0) : : "$17", "$18", "$19", "$20", "$21");
+
+  return v0;
+}
+
+static inline unsigned long get_alarm(void)
+{
+  register unsigned long v0 __asm__("$0");
+  register unsigned long a0 __asm__("$16") = 4;
+
+  asm("call_pal 9" : "=r"(v0), "+r"(a0) : : "$17", "$18", "$19", "$20", "$21");
+
+  return v0;
+}
+
+static inline void set_alarm_rel(unsigned long nsec)
+{
+  register unsigned long a0 __asm__("$16") = 5;
+  register unsigned long a1 __asm__("$17") = nsec;
+
+  asm volatile ("call_pal 9"
+		: "+r"(a0), "+r"(a1)
+		: : "$0", "$18", "$19", "$20", "$21");
+}
+
+static inline void set_alarm_abs(unsigned long nsec)
+{
+  register unsigned long a0 __asm__("$16") = 6;
+  register unsigned long a1 __asm__("$17") = nsec;
+
+  asm volatile ("call_pal 9"
+		: "+r"(a0), "+r"(a1)
+		: : "$0", "$18", "$19", "$20", "$21");
 }
 
 /*
@@ -66,5 +160,11 @@ extern unsigned long outb(unsigned char val, unsigned long port);
 extern unsigned long crb_dispatch(long select, long a1, long a2,
                                   long a3, long a4);
 extern unsigned long crb_fixup(unsigned long vptptr, unsigned long hwrpb);
+
+/*
+ * The Console
+ */
+extern void do_console(void);
+extern void entInt(void);
 
 #endif /* PROTOS_H */

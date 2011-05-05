@@ -231,14 +231,6 @@ init_pcb (void)
 }
 
 void
-do_hello(void)
-{
-  uart_puts(COM1, "Hello, World!\n");
-  asm ("halt");
-  __builtin_unreachable ();
-}
-
-void
 do_start(unsigned long memsize, void (*kernel_entry)(void), long cpus)
 {
   last_alloc = _end;
@@ -254,7 +246,7 @@ do_start(unsigned long memsize, void (*kernel_entry)(void), long cpus)
     register unsigned long pa_pcb __asm__("$18");
     register unsigned long vptptr __asm__("$19");
 
-    pc = (kernel_entry ? kernel_entry : do_hello);
+    pc = (kernel_entry ? kernel_entry : do_console);
     pa_pcb = PA(&pcb);
     vptptr = VPTPTR;
     asm("call_pal 0x0a" : : "r"(variant), "r"(pc), "r"(pa_pcb), "r"(vptptr));

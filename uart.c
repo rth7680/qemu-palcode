@@ -46,8 +46,17 @@ uart_charav(int offset)
 int
 uart_getchar(int offset)
 {
-	while (!uart_charav(offset))
-		continue;
+	/* If interrupts are enabled, use wtint assuming that either the
+	   device itself will wake us, or that a clock interrupt will.  */
+	if ((rdps() & 7) == 0) {
+	    while (!uart_charav(offset)) {
+		wtint(0);
+	    }
+	} else {
+	    while (!uart_charav(offset))
+	        continue;
+	}
+
 	return inb(com2Rbr + offset);
 }
 

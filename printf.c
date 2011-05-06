@@ -20,14 +20,38 @@
 
 #include <stdarg.h>
 #include <stdbool.h>
-#include "uart.h"
+#include <string.h>
+#include "console.h"
 
-static int print_decimal(unsigned long val)
+static int print_buf_pad(char *buf, int buflen, char *p, int width, int pad)
+{
+  int len = buf + buflen - p;
+  int r = 0;
+
+  if (width > len)
+    {
+      *--p = pad;
+      len++;
+
+      while (width > buflen)
+	{
+	  crb_puts(0, p, 1);
+	  width--;
+	  r++;
+	}
+      while (width > len)
+	*--p = pad, len++;
+    }
+
+  crb_puts(0, p, len);
+  return r + len;
+}
+
+static int print_decimal(unsigned long val, int width, int pad)
 {
   char buf[32];
-  char *p = buf+31;
+  char *p = buf + sizeof(buf);
 
-  *p = 0;
   if (val == 0)
     *--p = '0';
   else
@@ -48,16 +72,14 @@ static int print_decimal(unsigned long val)
       while (val);
     }
 
-  uart_puts(COM1, p+1);
-  return sizeof(buf) - (p - buf);
+  return print_buf_pad(buf, sizeof(buf), p, width, pad);
 }
 
-static int print_hex(unsigned long val)
+static int print_hex(unsigned long val, int width, char pad)
 {
   char buf[32];
-  char *p = buf+31;
+  char *p = buf + sizeof(buf);
 
-  *p = 0;
   if (val == 0)
     *--p = '0';
   else
@@ -71,8 +93,7 @@ static int print_hex(unsigned long val)
       while (val);
     }
 
-  uart_puts(COM1, p+1);
-  return sizeof(buf) - (p - buf);
+  return print_buf_pad(buf, sizeof(buf), p, width, pad);
 }
 
 int printf(const char *fmt, ...)
@@ -86,18 +107,21 @@ int printf(const char *fmt, ...)
   for (; *fmt ; fmt++)
     if (*fmt != '%')
       {
-        uart_putchar(COM1, *fmt);
+        crb_puts(0, fmt, 1);
 	r++;
       }
     else
       {
+        const char *percent = fmt;
 	bool is_long = false;
+        char pad = ' ';
+        int width = 0;
 
       restart:
         switch (*++fmt)
 	  {
 	  case '%':
-	    uart_putchar(COM1, '%');
+	    crb_puts(0, "%", 1);
 	    r++;
 	    break;
 
@@ -111,7 +135,7 @@ int printf(const char *fmt, ...)
 		long d = va_arg (args, long);
 		if (d < 0)
 		  {
-		    uart_putchar(COM1, '-');
+		    crb_puts(0, "-", 1);
 		    d = -d;
 		  }
 		val = d;
@@ -121,7 +145,7 @@ int printf(const char *fmt, ...)
 		int d = va_arg (args, int);
 		if (d < 0)
 		  {
-		    uart_putchar(COM1, '-');
+		    crb_puts(0, "-", 1);
 		    d = -d;
 		    r++;
 		  }
@@ -136,7 +160,7 @@ int printf(const char *fmt, ...)
 	      val = va_arg (args, unsigned int);
 
 	  do_unsigned:
-	    r += print_decimal (val);
+	    r += print_decimal (val, width, pad);
 	    break;
 
 	  case 'x':
@@ -144,23 +168,32 @@ int printf(const char *fmt, ...)
 	      val = va_arg (args, unsigned long);
 	    else
 	      val = va_arg (args, unsigned int);
-	    r += print_hex (val);
+	    r += print_hex (val, width, pad);
+	    break;
 
 	  case 's':
 	    {
 	      const char *s = va_arg (args, const char *);
-	      while (*s)
-		{
-		  uart_putchar(COM1, *s++);
-		  r++;
-		}
-	      break;
+	      int len = strlen(s);
+	      crb_puts(0, s, len);
+	      r += len;
 	    }
+	    break;
+
+	  case '0':
+	    pad = '0';
+          case '1' ... '9':
+	    width = *fmt - '0';
+	    while (fmt[1] >= '0' && fmt[1] <= '9')
+	      width = width * 10 + *++fmt - '0';
+	    goto restart;
 
 	  default:
-	    uart_putchar(COM1, '%');
-	    uart_putchar(COM1, *fmt);
-	    r += 2;
+	    {
+	      int len = fmt - percent;
+	      crb_puts(0, percent, len);
+	      r += len;
+	    }
 	    break;
 	  }
       }

@@ -176,6 +176,7 @@ extern void entInt(void);
  * Utils
  */
 
+extern int printf(const char *, ...);
 extern void ndelay(unsigned long nsec);
 
 static inline void udelay(unsigned long msec)

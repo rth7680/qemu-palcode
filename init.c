@@ -234,6 +234,11 @@ init_pcb (void)
 static void
 init_i8259 (void)
 {
+  /* ??? MILO initializes the PIC as edge triggered; I do not know how SRM
+     initializes them.  However, Linux seems to expect that these are level
+     triggered.  That may be a kernel bug, but level triggers are more
+     reliable anyway so lets go with that.  */
+
   /* Initialize the slave PIC.  */
   outb(0x11, PORT_PIC2_CMD);	/* ICW1: edge trigger, cascade, ICW4 req */
   outb(0x08, PORT_PIC2_DATA);	/* ICW2: irq offset = 8 */
@@ -245,6 +250,12 @@ init_i8259 (void)
   outb(0x00, PORT_PIC1_DATA);	/* ICW2: irq offset = 0 */
   outb(0x04, PORT_PIC1_DATA);	/* ICW3: slave control INTC2 */
   outb(0x01, PORT_PIC1_DATA);	/* ICW4 */
+
+  /* Initialize level triggers.  The CY82C693UB that's on real alpha
+     hardware doesn't have this; this is a PIIX extension.  However,
+     QEMU doesn't implement regular level triggers.  */
+  outb(0xff, PORT_PIC2_ELCR);
+  outb(0xff, PORT_PIC1_ELCR);
 
   /* Disable all interrupts.  */
   outb(0xff, PORT_PIC2_DATA);

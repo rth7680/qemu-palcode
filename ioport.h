@@ -53,6 +53,8 @@
 #define PORT_HD_DATA           0x03f6
 #define PORT_FD_DIR            0x03f7
 #define PORT_SERIAL1           0x03f8
+#define PORT_PIC1_ELCR         0x04d0
+#define PORT_PIC2_ELCR         0x04d1
 #define PORT_PCI_CMD           0x0cf8
 #define PORT_PCI_REBOOT        0x0cf9
 #define PORT_PCI_DATA          0x0cfc

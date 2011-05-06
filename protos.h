@@ -21,6 +21,11 @@
 #ifndef PROTOS_H
 #define PROTOS_H 1
 
+#include <stdint.h>
+#include <stdbool.h>
+#include <stddef.h>
+
+
 /*
  * Call_Pal functions.
  */
@@ -166,5 +171,21 @@ extern unsigned long crb_fixup(unsigned long vptptr, unsigned long hwrpb);
  */
 extern void do_console(void);
 extern void entInt(void);
+
+/*
+ * Utils
+ */
+
+extern void ndelay(unsigned long nsec);
+
+static inline void udelay(unsigned long msec)
+{
+  ndelay(msec * 1000);
+}
+
+/*
+ * Initialization
+ */
+extern void ps2port_setup(void);
 
 #endif /* PROTOS_H */

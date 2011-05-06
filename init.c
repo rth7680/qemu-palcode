@@ -22,6 +22,7 @@
 #include <stddef.h>
 #include "hwrpb.h"
 #include "osf.h"
+#include "ioport.h"
 #include "uart.h"
 #include "protos.h"
 #include SYSTEM_H
@@ -230,6 +231,30 @@ init_pcb (void)
   pcb.flags = 1; /* FEN */
 }
 
+static void
+init_i8259 (void)
+{
+  /* Initialize the slave PIC.  */
+  outb(0x11, PORT_PIC2_CMD);	/* ICW1: edge trigger, cascade, ICW4 req */
+  outb(0x08, PORT_PIC2_DATA);	/* ICW2: irq offset = 8 */
+  outb(0x02, PORT_PIC2_DATA);	/* ICW3: slave ID 2 */
+  outb(0x01, PORT_PIC2_DATA);	/* ICW4: not special nested, normal eoi */
+
+  /* Initialize the master PIC.  */
+  outb(0x11, PORT_PIC1_CMD);	/* ICW1 */
+  outb(0x00, PORT_PIC1_DATA);	/* ICW2: irq offset = 0 */
+  outb(0x04, PORT_PIC1_DATA);	/* ICW3: slave control INTC2 */
+  outb(0x01, PORT_PIC1_DATA);	/* ICW4 */
+
+  /* Disable all interrupts.  */
+  outb(0xff, PORT_PIC2_DATA);
+  outb(0xff, PORT_PIC1_DATA);
+
+  /* Non-specific EOI, clearing anything the might be pending.  */
+  outb(0x20, PORT_PIC2_CMD);
+  outb(0x20, PORT_PIC1_CMD);
+}
+
 void
 do_start(unsigned long memsize, void (*kernel_entry)(void), long cpus)
 {
@@ -238,7 +263,9 @@ do_start(unsigned long memsize, void (*kernel_entry)(void), long cpus)
   init_page_table();
   init_hwrpb(memsize);
   init_pcb();
+  init_i8259();
   uart_init();
+  ps2port_setup();
 
   {
     register int variant __asm__("$16") = 2;	/* OSF/1 PALcode */

@@ -197,5 +197,6 @@ static inline void udelay(unsigned long msec)
  * Initialization
  */
 extern void ps2port_setup(void);
+extern void pci_setup(void);
 
 #endif /* PROTOS_H */

@@ -143,6 +143,15 @@
 	sll	\ret, 20, \ret
 .endm
 
+.macro	LOAD_KSEG_PCI_CONF ret
+	.set	macro
+	// Note that GAS shifts are logical.  Force arithmetic shift style
+	// results by negating before and after the shift.
+	lda	\ret, -(-(PIO_KSEG_ADDR + TYPHOON_PCHIP0_PCI_CONF) >> 20)
+	.set	nomacro
+	sll	\ret, 20, \ret
+.endm
+
 .macro	SYS_WHAMI	ret
 	LOAD_PHYS_CCHIP	\ret
 	ldq_p		\ret, TYPHOON_CCHIP_MISC(\ret)

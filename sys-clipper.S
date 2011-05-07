@@ -113,34 +113,20 @@ Cserve_Dis:
 ENDFN	Cserve_Dis
 
 /*
- * inb
- *
- * Read a byte from the PCI I/O bus.
+ * PCI parameters
  */
-	.globl	inb
-	.ent	inb
-inb:
-	.frame	$sp, 0, $26, 0
-	.prologue 0
-	LOAD_KSEG_PCI_IO v0
-	addq	v0, a0, v0
-	ldbu	v0, 0(v0)
-	ret
-	.end	inb
 
-/*
- * outb
- *
- * Write a byte to the PCI I/O bus.
- */
-	.globl	outb
-	.ent	outb
-outb:
-	.frame	$sp, 0, $26, 0
-	.prologue 0
-	LOAD_KSEG_PCI_IO p0
-	addq	p0, a1, p0
-	stb	a0, 0(p0)
-	ret
-	.end	outb
+	.section .sdata
 
+	.align	3
+	.globl	pci_io_base
+	.type	pci_io_base, @object
+	.size	pci_io_base, 8
+pci_io_base:
+	.quad	PIO_KSEG_ADDR + TYPHOON_PCHIP0_PCI_IO
+
+	.globl	pci_conf_base
+	.type	pci_conf_base, @object
+	.size	pci_conf_base, 8
+pci_conf_base:
+	.quad	PIO_KSEG_ADDR + TYPHOON_PCHIP0_PCI_CONF

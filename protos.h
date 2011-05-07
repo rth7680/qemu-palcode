@@ -155,8 +155,17 @@ static inline void set_alarm_abs(unsigned long nsec)
  * I/O functions
  */
 
-extern unsigned long inb(unsigned long port);
-extern unsigned long outb(unsigned char val, unsigned long port);
+extern void *pci_io_base;
+
+static inline uint8_t inb(unsigned long port)
+{
+  return *(volatile uint8_t *)(pci_io_base + port);
+}
+
+static inline void outb(uint8_t val, unsigned long port)
+{
+  *(volatile uint8_t *)(pci_io_base + port) = val;
+}
 
 /*
  * CRB functions

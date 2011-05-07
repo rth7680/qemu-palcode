@@ -26,14 +26,14 @@ ndelay(unsigned long nsec)
 {
   unsigned long target, now;
 
+  /* ??? Fix race between setting an alarm and waiting for an interrupt,
+     so that we can use wtint here.  This isn't used much except for 
+     during startup, so it probably doesn't matter much.  */
+
   now = get_wall_time();
   target = now + nsec;
 
-  set_alarm_abs(nsec);
   do
-    {
-      wtint(0);
-      now = get_wall_time();
-    }
+    now = get_wall_time();
   while (now < target);
 }

@@ -162,9 +162,29 @@ static inline uint8_t inb(unsigned long port)
   return *(volatile uint8_t *)(pci_io_base + port);
 }
 
+static inline uint16_t inw(unsigned long port)
+{
+  return *(volatile uint16_t *)(pci_io_base + port);
+}
+
+static inline uint32_t inl(unsigned long port)
+{
+  return *(volatile uint32_t *)(pci_io_base + port);
+}
+
 static inline void outb(uint8_t val, unsigned long port)
 {
   *(volatile uint8_t *)(pci_io_base + port) = val;
+}
+
+static inline void outw(uint16_t val, unsigned long port)
+{
+  *(volatile uint16_t *)(pci_io_base + port) = val;
+}
+
+static inline void outl(uint32_t val, unsigned long port)
+{
+  *(volatile uint32_t *)(pci_io_base + port) = val;
 }
 
 /*

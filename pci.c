@@ -141,8 +141,8 @@ pci_setup_device(int bdf, uint32_t *p_io_base, uint32_t *p_mem_base)
 void
 pci_setup(void)
 {
-  uint32_t io_base = 0x8000;
-  uint32_t mem_base = (128+16) * 1024 * 1024;
+  uint32_t io_base = 0xc000;
+  uint32_t mem_base = 256 * 1024 * 1024;
   int bdf, max;
 
   foreachpci (bdf, max)

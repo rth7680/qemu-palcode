@@ -14,7 +14,7 @@ CPPFLAGS = -DSYSTEM_H='"sys-$(SYSTEM).h"'
 CFLAGS += -mcpu=ev67
 
 OBJS = pal.o sys-$(SYSTEM).o init.o crb.o uart.o console.o console-low.o \
-	ps2port.o pci.o \
+	ps2port.o pci.o vgaio.o \
 	printf.o util.o memset.o strlen.o
 
 all: palcode-$(SYSTEM)

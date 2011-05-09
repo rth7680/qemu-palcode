@@ -277,6 +277,8 @@ do_start(unsigned long memsize, void (*kernel_entry)(void), long cpus)
   init_i8259();
   uart_init();
   ps2port_setup();
+  pci_setup();
+  vgahw_init();
 
   {
     register int variant __asm__("$16") = 2;	/* OSF/1 PALcode */

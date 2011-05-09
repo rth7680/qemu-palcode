@@ -121,8 +121,6 @@ do_console(void)
   set_console_alarm();
   swpipl(0);
 
-  pci_setup();
-
   while (1)
     {
       crb_puts(0, ">>> ", 4);

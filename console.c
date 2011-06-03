@@ -20,6 +20,7 @@
 
 #include "protos.h"
 #include "console.h"
+#include "vgatables.h"
 
 
 static void
@@ -120,6 +121,17 @@ do_console(void)
   wrent(entInt, 0);
   set_console_alarm();
   swpipl(0);
+
+  {
+    unsigned short *vga, attr;
+    vga = pci_mem_base + SEG_CTEXT *16;
+    attr = 0x2000;
+    vga[0] = 'H' + attr;
+    vga[1] = 'e' + attr;
+    vga[2] = 'l' + attr;
+    vga[3] = 'l' + attr;
+    vga[4] = 'o' + attr;
+  }
 
   while (1)
     {

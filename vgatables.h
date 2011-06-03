@@ -55,9 +55,9 @@ typedef uint16_t u16;
 #define VGAREG_CGA_PALETTE             0x3d9
 
 /* Video memory */
-#define GRAPH_OFFSET                   0xA0000
-#define CTEXT_OFFSET                   0xB8000
-#define MTEXT_OFFSET                   0xB0000
+#define SEG_GRAPH                      0xA000
+#define SEG_CTEXT                      0xB800
+#define SEG_MTEXT                      0xB000
 
 /*
  * Tables of default values for each mode

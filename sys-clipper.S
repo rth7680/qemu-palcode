@@ -130,3 +130,11 @@ pci_io_base:
 	.size	pci_conf_base, 8
 pci_conf_base:
 	.quad	PIO_KSEG_ADDR + TYPHOON_PCHIP0_PCI_CONF
+
+	.align	3
+	.globl	pci_mem_base
+	.type	pci_mem_base, @object
+	.size	pci_mem_base, 8
+pci_mem_base:
+	.quad	PIO_KSEG_ADDR + TYPHOON_PCHIP0_PCI_MEM
+

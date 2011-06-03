@@ -24,6 +24,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <string.h>
 
 
 /*
@@ -156,6 +157,7 @@ static inline void set_alarm_abs(unsigned long nsec)
  */
 
 extern void *pci_io_base;
+extern void *pci_mem_base;
 
 static inline uint8_t inb(unsigned long port)
 {

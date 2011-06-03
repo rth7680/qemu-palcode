@@ -554,9 +554,36 @@ vgahw_enable_video_addressing(u8 disable)
 void
 vgahw_init(void)
 {
-    // switch to color mode and enable CPU access 480 lines
-    outb(0xc3, VGAREG_WRITE_MISC_OUTPUT);
-    // more than 64k 3C4/04
-    outb(0x04, VGAREG_SEQU_ADDRESS);
-    outb(0x02, VGAREG_SEQU_DATA);
+  struct vgamode_s *vmode_g = find_vga_entry(3);
+
+  vgahw_sequ_write(0, 1);	// Assert sync reset
+  
+  // Switch to color mode and enable CPU access 480 lines
+  outb(0xc3, VGAREG_WRITE_MISC_OUTPUT);
+
+  vgahw_sequ_write(0, 3);	// De-assert sync reset
+
+  vgahw_set_mode(vmode_g->vparam);
+
+  vgahw_sequ_write(4, 0x06); // disable odd/even + chain4
+  vgahw_sequ_write(1, vmode_g->vparam->sequ_regs[1] | 0x20); // disable video
+  vgahw_grdc_write(5, vmode_g->vparam->grdc_regs[5] & 0xef); // disable odd/even
+  vgahw_grdc_write(6, 0x05); // set mem map to 0xa0000 and graphics mode
+  vgahw_sequ_write(2, 0x04); // enable write plane 2
+
+  {
+    unsigned char *font_ptr = pci_mem_base + SEG_GRAPH*16;
+    int i;
+
+    for (i = 0; i < 0x100; i++)
+      __builtin_memcpy(font_ptr + i*32, vgafont16 + i*16, 16);
+  }
+
+  {
+    int i = vmode_g->dacsize / 3;
+    vgahw_set_dac_regs(vmode_g->dac, 0, i);
+  }
+
+  vgahw_sequ_write(4, 0x2); // enable odd/even
+  vgahw_set_mode(vmode_g->vparam);
 }

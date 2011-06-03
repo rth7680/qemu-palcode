@@ -122,6 +122,7 @@ do_console(void)
   set_console_alarm();
   swpipl(0);
 
+  if (have_vga)
   {
     unsigned short *vga, attr;
     vga = pci_mem_base + SEG_CTEXT *16;

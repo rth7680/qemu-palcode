@@ -200,6 +200,9 @@ extern unsigned long crb_fixup(unsigned long vptptr, unsigned long hwrpb);
 /*
  * The Console
  */
+
+extern bool have_vga;
+
 extern void do_console(void);
 extern void entInt(void);
 

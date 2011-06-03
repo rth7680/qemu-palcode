@@ -7,6 +7,9 @@
 
 #include "protos.h"
 #include "ioport.h"
+#include "pci.h"
+#include "pci_regs.h"
+#include "pci_ids.h"
 #include "vgatables.h"
 
 #define GET_FARVAR(seg, ofs)		(ofs)
@@ -554,7 +557,21 @@ vgahw_enable_video_addressing(u8 disable)
 void
 vgahw_init(void)
 {
-  struct vgamode_s *vmode_g = find_vga_entry(3);
+  struct vgamode_s *vmode_g;
+  int bdf, max;
+
+  foreachpci(bdf, max)
+    {
+      uint16_t class = pci_config_readw(bdf, PCI_CLASS_DEVICE);
+      if (class == PCI_CLASS_DISPLAY_VGA)
+        goto found;
+    }
+  return;
+
+ found:
+  have_vga = 1;
+
+  vmode_g = find_vga_entry(3);
 
   vgahw_sequ_write(0, 1);	// Assert sync reset
   

@@ -59,6 +59,7 @@ static unsigned long page_dir[1024] __attribute__((aligned(PAGE_SIZE)));
 struct hwrpb_combine hwrpb __attribute__((aligned(PAGE_SIZE)));
 
 void *last_alloc;
+bool have_vga;
 
 static void *
 alloc (unsigned long size, unsigned long align)

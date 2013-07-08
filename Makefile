@@ -6,8 +6,8 @@ CORE = typhoon
 SYSTEM = clipper
 
 ASFLAGS = -Wa,-m21264 -Wa,--noexecstack
-OPT= -Os
-CFLAGS = $(OPT) -g -Wall -fvisibility=hidden -fno-strict-aliasing \
+OPT= -O2
+CFLAGS = $(OPT) -g1 -Wall -fvisibility=hidden -fno-strict-aliasing \
   -msmall-text -msmall-data -mno-fp-regs -mbuild-constants
 CPPFLAGS = -DSYSTEM_H='"sys-$(SYSTEM).h"'
 

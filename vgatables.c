@@ -417,7 +417,7 @@ find_vga_entry(u8 mode)
     return NULL;
 }
 
-u16 video_save_pointer_table[14] VAR16;
+// u16 video_save_pointer_table[14] VAR16;
 
 
 /****************************************************************

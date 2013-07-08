@@ -6,12 +6,17 @@ SECTIONS
   . = 0xfffffc0000000000;
   .text : { *(.text*) }
   .rodata : { *(.rodata*) }
-  .data ALIGN(8192) : { *(.data.hwrpb) *(.data*) }
+  .data ALIGN(8192) : { *(.data*) }
   .got : { *(.got.plt) *(.got) }
   .sdata : { *(.sdata*) }
   .sbss : { *(.sbss) *(.scommon) }
-  .bss : { *(.bss) *(COMMON) }
-  PROVIDE (_end = .);
+  .bss : {
+    *(.bss.page_dir)
+    *(.bss.stack)
+    *(COMMON)
+    *(.bss)
+    PROVIDE (_end = .);
+  }
 
   /* DWARF debug sections.
      Symbols in the DWARF debugging sections are relative to the beginning

@@ -1905,7 +1905,7 @@ Sys_EnterConsole:
  * Allocate the initial bootup stack.
  */
 
-	.section .bss
+	.section .bss.stack
 	.align 3
 	.globl	stack
 	.type	stack,@object

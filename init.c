@@ -53,7 +53,8 @@ extern char _end[] __attribute__((visibility("hidden"), nocommon));
 
 struct pcb_struct pcb __attribute__((section(".sbss")));
 
-static unsigned long page_dir[1024] __attribute__((aligned(PAGE_SIZE)));
+static unsigned long page_dir[1024]
+  __attribute__((aligned(PAGE_SIZE), section(".bss.page_dir")));
 
 /* The HWRPB must be aligned because it is exported at INIT_HWRPB.  */
 struct hwrpb_combine hwrpb __attribute__((aligned(PAGE_SIZE)));

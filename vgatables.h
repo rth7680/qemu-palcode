@@ -155,11 +155,11 @@ extern struct VideoParam_s video_param_table[];
 extern u8 static_functionality[];
 
 // vgafonts.c
-extern u8 vgafont8[];
-extern u8 vgafont14[];
-extern u8 vgafont16[];
-extern u8 vgafont14alt[];
-extern u8 vgafont16alt[];
+extern const u8 vgafont8[];
+extern const u8 vgafont14[];
+extern const u8 vgafont16[];
+extern const u8 vgafont14alt[];
+extern const u8 vgafont16alt[];
 
 // vga.c
 struct carattr {

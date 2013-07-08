@@ -139,5 +139,5 @@ uart_init_line(int offset, int baud)
 void uart_init(void)
 {
 	uart_init_line(COM1, SERIAL_SPEED);
-	uart_init_line(COM2, SERIAL_SPEED);
+	/* uart_init_line(COM2, SERIAL_SPEED); */
 }

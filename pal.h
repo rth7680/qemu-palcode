@@ -109,6 +109,7 @@
 #define qemu_halt	252
 #define qemu_alarm	251
 #define qemu_walltime	250
+#define qemu_vmtime	249
 
 /* PALcode uses of the private storage slots.  */
 #define ptEntUna	pt0

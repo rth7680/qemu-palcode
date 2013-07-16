@@ -446,7 +446,7 @@ ENDFN	CallPal_OpcDec08
 CallPal_Cserve:
 	// Most of the entries are densely clustered around 0.
 	mov	0, v0
-	cmpule	a0, 6, p0
+	cmpule	a0, 7, p0
 	cmovne	p0, a0, v0
 	br	p0, 1f
 1:	lda	p0, Cserve_Table-1b(p0)
@@ -480,13 +480,18 @@ Cserve_Get_Alarm:
 ENDFN	Cserve_Get_Alarm
 Cserve_Set_Alarm_Rel:
 	// Cheating here: create the absolute time and fall thru.
-	mfpr	p0, qemu_walltime
+	mfpr	p0, qemu_vmtime
 	addq	p0, a1, a1
 ENDFN	Cserve_Set_Alarm_Rel
 Cserve_Set_Alarm_Abs:
 	mtpr	a1, qemu_alarm
 	hw_rei
 ENDFN	Cserve_Set_Alarm_Abs
+Cserve_Get_VM_Time:
+	mfpr	v0, qemu_vmtime
+	hw_rei
+ENDFN	Cserve_Get_VM_Time
+
 
 CallPal_Cserve_Cont:
 	// ??? For SRM compatibility and their use within Linux, use 52/53

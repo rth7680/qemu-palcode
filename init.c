@@ -300,7 +300,7 @@ do_start(unsigned long memsize, void (*kernel_entry)(void), unsigned long cpus)
   pci_setup();
   vgahw_init();
 
-  swppal(kernel_entry, &pcb);
+  swppal(kernel_entry ? kernel_entry : do_console, &pcb);
 }
 
 void

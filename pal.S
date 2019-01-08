@@ -291,10 +291,9 @@ ENDFN	Pal_Unalign
 Pal_OpcDec:
 	mfpr	p0, qemu_ps
 	mfpr	p6, qemu_exc_addr
-	addq	p6, 4, p1		// increment past the faulting insn
 	blbs	p6, MchkBugCheck
 
-	STACK_FRAME p0, p1, p2, 1
+	STACK_FRAME p0, p6, p2, 1
 
 	mfpr	p0, ptEntIF
 	mfpr	$gp, ptKgp

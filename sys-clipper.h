@@ -27,4 +27,21 @@
 #define SYS_VARIATION	(5 << 10)
 #define SYS_REVISION	0
 
+#ifndef __ASSEMBLER__
+
+static inline uint8_t MAP_PCI_INTERRUPT(int slot, int pin, int class_id)
+{
+  uint8_t irq = 0xff; /* no interrupt mapping */
+
+  /* PCI-ISA bridge is hard-wired to IRQ 55 on real hardware, and comes in
+     at a different SCB vector; force the line register to 0xff.
+     Otherwise, see qemu hw/alpha/dp264.c:clipper_pci_map_irq()  */
+  if (class_id != 0x0601 && pin >= 1 && pin <= 4)
+    irq = (slot + 1) * 4 + (pin - 1);
+
+  return irq;
+}
+
+#endif /* ! __ASSEMBLER__ */
+
 #endif

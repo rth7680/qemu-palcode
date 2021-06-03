@@ -29,6 +29,7 @@
 #include "protos.h"
 #include "pci.h"
 #include "pci_regs.h"
+#include SYSTEM_H
 
 
 #define PCI_SLOT_MAX		32
@@ -131,7 +132,16 @@ pci_setup_device(int bdf, uint32_t *p_io_base, uint32_t *p_mem_base)
 
   pci_config_maskw(bdf, PCI_COMMAND, 0, PCI_COMMAND_IO | PCI_COMMAND_MEMORY);
 
-  /* Map the interrupt.  */
+  /* Map the interrupt and program the IRQ into the line register.
+     Some operating systems rely on the Console providing this information
+     in order to avoid having mapping tables for every possible system
+     variation.  */
+
+  const uint8_t pin = pci_config_readb(bdf, PCI_INTERRUPT_PIN);
+  const uint8_t slot = PCI_SLOT(bdf);
+  const uint8_t irq = MAP_PCI_INTERRUPT(slot, pin, class_id);
+
+  pci_config_writeb(bdf, PCI_INTERRUPT_LINE, irq);
 }
 
 void

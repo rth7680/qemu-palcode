@@ -141,6 +141,7 @@ init_hwrpb (unsigned long memsize, unsigned long cpus)
   unsigned long pal_pages;
   unsigned long amask;
   unsigned long i;
+  unsigned long proc_type = EV4_CPU;
   
   hwrpb.hwrpb.phys_addr = PA(&hwrpb);
 
@@ -162,12 +163,12 @@ init_hwrpb (unsigned long memsize, unsigned long cpus)
   switch (__builtin_alpha_implver())
     {
     case 0: /* EV4 */
-      hwrpb.hwrpb.cpuid = EV4_CPU;
+      proc_type = EV4_CPU;
       hwrpb.hwrpb.max_asn = 63;
       break;
 
     case 1: /* EV5 */
-      hwrpb.hwrpb.cpuid
+      proc_type
 	= ((amask & 0x101) == 0x101 ? PCA56_CPU		/* MAX+BWX */
 	   : amask & 1 ? EV56_CPU			/* BWX */
 	   : EV5_CPU);
@@ -175,10 +176,15 @@ init_hwrpb (unsigned long memsize, unsigned long cpus)
       break;
 
     case 2: /* EV6 */
-      hwrpb.hwrpb.cpuid = (amask & 4 ? EV67_CPU : EV6_CPU);  /* CIX */
+      proc_type = (amask & 4 ? EV67_CPU : EV6_CPU);     /* CIX */
       hwrpb.hwrpb.max_asn = 255;
       break;
     }
+
+  /* This field is the WHAMI of the primary CPU.  Just initialize
+     this to 0; CPU #0 is always the primary on real Alpha systems
+     (except for the TurboLaser).  */
+  hwrpb.hwrpb.cpuid = 0;
 
   hwrpb.hwrpb.pagesize = PAGE_SIZE;
   hwrpb.hwrpb.pa_bits = 40;
@@ -187,9 +193,18 @@ init_hwrpb (unsigned long memsize, unsigned long cpus)
   hwrpb.hwrpb.sys_revision = SYS_REVISION;
   for (i = 0; i < cpus; ++i)
     {
-      /* ??? Look up these bits.  Snagging the value examined by the kernel. */
+      /* Set the following PCS flags:
+	 (bit 2) Processor Available
+	 (bit 3) Processor Present
+	 (bit 6) PALcode Valid
+	 (bit 7) PALcode Memory Valid
+	 (bit 8) PALcode Loaded
+
+	 ??? We really should be intializing the PALcode memory and
+	 scratch space fields if we're setting PMV, or not set PMV,
+	 but Linux checks for it, so...  */
       hwrpb.processor[i].flags = 0x1cc;
-      hwrpb.processor[i].type = hwrpb.hwrpb.cpuid;
+      hwrpb.processor[i].type = proc_type;
     }
 
   hwrpb.hwrpb.intr_freq = HZ * 4096;

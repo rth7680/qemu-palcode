@@ -278,7 +278,7 @@ Pal_Unalign:
 	blbs	p6, MchkBugCheck
 	addq	p6, 4, p6		// increment past the faulting insn
 
-	STACK_FRAME p0, p1, p2, 1
+	STACK_FRAME p0, p6, p2, 1
 
 	mfpr	p0, ptEntUna
 	mfpr	$gp, ptKgp

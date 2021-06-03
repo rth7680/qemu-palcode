@@ -566,6 +566,8 @@ ENDFN	CallPal_Cserve_Cont
  *	r17 (a1) = New PC
  *	r18 (a2) = New PCB
  *	r19 (a3) = New VptPtr
+ *	r20 (a4) = New Procedure Value (to place into $27)
+ *	           (Non-standard; See note below.)
  * 
  * OUTPUT PARAMETERS:
  *
@@ -574,11 +576,14 @@ ENDFN	CallPal_Cserve_Cont
  *			1 - Unknown PALcode variant
  *			2 - Known PALcode variant, but PALcode not loaded
  *
- *	r26 (ra) = r27 (pv) = New PC
+ *	r26 (ra) = New PC
+ *	r27 (pv) = From r20
  *		Note that this is non-architected, but is relied on by
  *		the usage of SwpPal within our own console code in order
- *		to simplify its use within C code.
- *
+ *		to simplify its use within C code.  We can get away with
+ *		the extra non-standard argument (in $20) because as
+ *		architected, all registers except SP and R0 are
+ *		UNPREDICTABLE; therefore private internal usage is fine.
  */
 	ORG_CALL_PAL_PRIV(0x0A)
 CallPal_SwpPal:
@@ -624,7 +629,7 @@ CallPal_SwpPal_Cont:
 	mtpr	$31, qemu_tbia		// Flush TLB for new PTBR
 
 	mov	a1, $26
-	mov	a1, $27
+	mov	a4, $27
 	hw_ret	(a1)
 ENDFN	CallPal_SwpPal_Cont
 	.previous

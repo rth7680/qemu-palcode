@@ -288,14 +288,16 @@ init_i8259 (void)
 }
 
 static void __attribute__((noreturn))
-swppal(void *entry, void *pcb)
+swppal(void *entry, void *pcb, unsigned long vptptr, unsigned long pv)
 {
   register int variant __asm__("$16") = 2;	/* OSF/1 PALcode */
   register void *pc __asm__("$17") = entry;
   register unsigned long pa_pcb __asm__("$18") = PA(pcb);
-  register unsigned long vptptr __asm__("$19") = VPTPTR;
+  register unsigned long newvptptr __asm__("$19") = vptptr;
+  register unsigned long newpv __asm__("$20") = pv;
 
-  asm("call_pal 0x0a" : : "r"(variant), "r"(pc), "r"(pa_pcb), "r"(vptptr));
+  asm("call_pal 0x0a" : :
+      "r"(variant), "r"(pc), "r"(pa_pcb), "r"(newvptptr), "r"(newpv));
   __builtin_unreachable ();
 }
 
@@ -313,7 +315,9 @@ do_start(unsigned long memsize, void (*kernel_entry)(void), unsigned long cpus)
   pci_setup();
   vgahw_init();
 
-  swppal(kernel_entry ? kernel_entry : do_console, &pcb);
+  void *new_pc = kernel_entry ? kernel_entry : do_console;
+
+  swppal(new_pc, &pcb, VPTPTR, (unsigned long)new_pc);
 }
 
 void
@@ -328,14 +332,16 @@ do_start_wait(unsigned long cpuid)
 	{
 	  /* ??? The only message I know of is "START\r\n".
 	     I can't be bothered to verify more than 4 characters.  */
-	  /* ??? The Linux kernel fills in, but does not require,
-	     CPU_restart_data.  It just sets that to the same address
-	     as CPU_restart itself.  Our swppal *does* put the PC into
-	     $26 and $27, the latter of which the kernel does rely upon.  */
+
+	  /* Use use a private extension to SWPPAL to get the
+	     CPU_restart_data into $27.  Linux fills it in, but does
+	     not require it. Other operating systems, however, do use
+	     CPU_restart_data as part of secondary CPU start-up.  */
 
 	  unsigned int len = hwrpb.processor[cpuid].ipc_buffer[0];
 	  unsigned int msg = hwrpb.processor[cpuid].ipc_buffer[1];
 	  void *CPU_restart = hwrpb.hwrpb.CPU_restart;
+	  unsigned long CPU_restart_data = hwrpb.hwrpb.CPU_restart_data;
 	  __sync_synchronize();
 	  hwrpb.hwrpb.rxrdy = 0;
 
@@ -343,7 +349,8 @@ do_start_wait(unsigned long cpuid)
 	    {
 	      /* Set bootstrap in progress */
 	      hwrpb.processor[cpuid].flags |= 1;
-	      swppal(CPU_restart, hwrpb.processor[cpuid].hwpcb);
+	      swppal(CPU_restart, hwrpb.processor[cpuid].hwpcb,
+		     hwrpb.hwrpb.vptb, CPU_restart_data);
 	    }
 	}
     }

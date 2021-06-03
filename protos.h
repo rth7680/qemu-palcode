@@ -21,11 +21,31 @@
 #ifndef PROTOS_H
 #define PROTOS_H 1
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <string.h>
+/* Stand-alone definitions for various types, compatible with
+   the Alpha Linux ABI and GCC.  This eliminates dependencies
+   on external headers.  */
+typedef unsigned char  uint8_t;
+typedef unsigned short uint16_t;
+typedef unsigned int   uint32_t;
+typedef unsigned long  uint64_t;
+typedef unsigned long  size_t;
 
+#define bool           _Bool
+#define true           1
+#define false          0
+
+#define offsetof(type, member) __builtin_offsetof(type, member)
+
+typedef __builtin_va_list va_list;
+#define va_start(ap, last)     __builtin_va_start((ap), (last))
+#define va_arg                 __builtin_va_arg
+#define va_end(ap)             __builtin_va_end(ap)
+
+#define NULL                   ((void *)0)
+
+extern void *memset(void *, int, size_t);
+extern void *memcpy(void *, const void *, size_t);
+extern size_t strlen(const char *);
 
 /*
  * Call_Pal functions.

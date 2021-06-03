@@ -18,8 +18,6 @@
    along with this program; see the file COPYING.  If not see
    <http://www.gnu.org/licenses/>.  */
 
-#include <string.h>
-#include <stddef.h>
 #include "hwrpb.h"
 #include "osf.h"
 #include "ioport.h"

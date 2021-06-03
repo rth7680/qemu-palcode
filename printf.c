@@ -18,10 +18,8 @@
    along with this program; see the file COPYING.  If not see
    <http://www.gnu.org/licenses/>.  */
 
-#include <stdarg.h>
-#include <stdbool.h>
-#include <string.h>
 #include "console.h"
+#include "protos.h"
 
 static int print_buf_pad(char *buf, int buflen, char *p, int width, int pad)
 {

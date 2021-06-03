@@ -8,7 +8,7 @@
  * This is a reasonably optimized memcpy() routine.
  */
 
-#include <string.h>
+#include "protos.h"
 
 /*
  * Note that the C code is written to be optimized into good assembly. However,

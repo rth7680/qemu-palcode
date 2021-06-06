@@ -120,8 +120,8 @@ pci_setup_device(int bdf, uint32_t *p_io_base, uint32_t *p_mem_base)
 
 	  printf("PCI:   region %d: %08x\r\n", region, addr);
 
-	  if ((val & PCI_BASE_ADDRESS_MEM_TYPE_MASK)
-	      == PCI_BASE_ADDRESS_MEM_TYPE_64)
+	  if ((old & (PCI_BASE_ADDRESS_SPACE | PCI_BASE_ADDRESS_MEM_TYPE_MASK))
+              == (PCI_BASE_ADDRESS_SPACE_MEMORY | PCI_BASE_ADDRESS_MEM_TYPE_64))
 	    {
 	      pci_config_writel(bdf, ofs + 4, 0);
 	      region++;

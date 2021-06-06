@@ -272,7 +272,7 @@ init_i8259 (void)
   outb(0x04, PORT_PIC1_DATA);	/* ICW3: slave control INTC2 */
   outb(0x01, PORT_PIC1_DATA);	/* ICW4 */
 
-  /* Initialize level triggers.  The CY82C693UB that's on real alpha
+  /* Initialize level triggers.  The CY82C693UB that's on some real alpha
      hardware doesn't have this; this is a PIIX extension.  However,
      QEMU doesn't implement regular level triggers.  */
   outb(0xff, PORT_PIC2_ELCR);

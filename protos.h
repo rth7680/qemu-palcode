@@ -222,6 +222,8 @@ extern unsigned long crb_fixup(unsigned long vptptr, unsigned long hwrpb);
  */
 
 extern bool have_vga;
+extern unsigned int pci_vga_bus;
+extern unsigned int pci_vga_dev;
 
 extern void do_console(void);
 extern void entInt(void);

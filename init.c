@@ -36,11 +36,20 @@
 
 #define HZ	1024
 
+/* Upon entry, register a2 contains configuration information from the VM:
+
+   bits 0-5 -- ncpus
+   bit  6   -- "nographics" option (used to initialize CTB)  */
+
+#define CONFIG_NCPUS(x)      ((x) & 63)
+#define CONFIG_NOGRAPHICS(x) ((x) & (1ull << 6))
+
 struct hwrpb_combine {
   struct hwrpb_struct hwrpb;
   struct percpu_struct processor[4];
   struct memdesc_struct md;
   struct memclust_struct mc[2];
+  struct ctb_struct ctb;
   struct crb_struct crb;
   struct procdesc_struct proc_dispatch;
   struct procdesc_struct proc_fixup;
@@ -59,6 +68,8 @@ struct hwrpb_combine hwrpb __attribute__((aligned(PAGE_SIZE)));
 
 void *last_alloc;
 bool have_vga;
+unsigned int pci_vga_bus;
+unsigned int pci_vga_dev;
 
 static void *
 alloc (unsigned long size, unsigned long align)
@@ -136,12 +147,13 @@ init_page_table(void)
 }
 
 static void
-init_hwrpb (unsigned long memsize, unsigned long cpus)
+init_hwrpb (unsigned long memsize, unsigned long config)
 {
   unsigned long pal_pages;
   unsigned long amask;
   unsigned long i;
   unsigned long proc_type = EV4_CPU;
+  unsigned long cpus = CONFIG_NCPUS(config);
   
   hwrpb.hwrpb.phys_addr = PA(&hwrpb);
 
@@ -226,6 +238,22 @@ init_hwrpb (unsigned long memsize, unsigned long cpus)
   hwrpb.mc[1].start_pfn = pal_pages;
   hwrpb.mc[1].numpages = (memsize >> PAGE_SHIFT) - pal_pages;
 
+  hwrpb.hwrpb.ctbt_offset = offsetof(struct hwrpb_combine, ctb);
+  hwrpb.hwrpb.ctb_size = sizeof(hwrpb.ctb);
+  hwrpb.ctb.len = sizeof(hwrpb.ctb) - offsetof(struct ctb_struct, ipl);
+  if (have_vga && !CONFIG_NOGRAPHICS(config))
+    {
+      hwrpb.ctb.type = CTB_MULTIPURPOSE;
+      hwrpb.ctb.term_type = CTB_GRAPHICS;
+      hwrpb.ctb.turboslot = (CTB_TURBOSLOT_TYPE_PCI << 16) |
+			    (pci_vga_bus << 8) | pci_vga_dev;
+    }
+  else
+    {
+      hwrpb.ctb.type = CTB_PRINTERPORT;
+      hwrpb.ctb.term_type = CTB_PRINTERPORT;
+    }
+
   hwrpb.hwrpb.crb_offset = offsetof(struct hwrpb_combine, crb);
   hwrpb.crb.dispatch_va = &hwrpb.proc_dispatch;
   hwrpb.crb.dispatch_pa = PA(&hwrpb.proc_dispatch);
@@ -302,18 +330,19 @@ swppal(void *entry, void *pcb, unsigned long vptptr, unsigned long pv)
 }
 
 void
-do_start(unsigned long memsize, void (*kernel_entry)(void), unsigned long cpus)
+do_start(unsigned long memsize, void (*kernel_entry)(void),
+         unsigned long config)
 {
   last_alloc = _end;
 
   init_page_table();
-  init_hwrpb(memsize, cpus);
   init_pcb();
   init_i8259();
   uart_init();
   ps2port_setup();
   pci_setup();
   vgahw_init();
+  init_hwrpb(memsize, config);
 
   void *new_pc = kernel_entry ? kernel_entry : do_console;
 

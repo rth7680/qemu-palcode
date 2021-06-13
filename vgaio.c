@@ -570,6 +570,8 @@ vgahw_init(void)
 
  found:
   have_vga = 1;
+  pci_vga_bus = PCI_BUS(bdf);
+  pci_vga_dev = PCI_SLOT(bdf);
 
   vmode_g = find_vga_entry(3);
 
